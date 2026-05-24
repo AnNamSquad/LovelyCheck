@@ -67,3 +67,8 @@ local.properties
 .scala_dependencies
 .worksheet
 .sts4-cache/
+
+
+# AI section
+.claude/
+.cursor/
