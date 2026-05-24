@@ -1,0 +1,100 @@
+package org.lovelycheck.spigot.protocol;
+
+import com.github.retrooper.packetevents.PacketEvents;
+import io.github.retrooper.packetevents.factory.spigot.SpigotPacketEventsBuilder;
+import org.bukkit.Bukkit;
+import org.lovelycheck.spigot.LovelyCheckConnectionPlugin;
+import org.lovelycheck.spigot.listeners.PacketEventsPayloadListener;
+
+/**
+ * Isolates PacketEvents references to prevent class loading failures when PacketEvents is not installed.
+ * This class should only be loaded when PacketEvents is confirmed to be available.
+ */
+public final class PacketEventsIntegration {
+
+    private final LovelyCheckConnectionPlugin plugin;
+    private final PacketEventsPayloadListener listener;
+    private boolean loaded = false;
+    private boolean initialized = false;
+    private boolean ownedByUs = false;
+
+    public PacketEventsIntegration(LovelyCheckConnectionPlugin plugin) {
+        this.plugin = plugin;
+        this.listener = new PacketEventsPayloadListener(plugin);
+    }
+
+    /**
+     * Initialize PacketEvents. Must be called during onLoad() phase.
+     * Only initializes if PacketEvents is not already loaded as a standalone plugin.
+     */
+    public void load() {
+        // Check if PacketEvents is already loaded as a plugin (standalone or by another plugin)
+        // In that case, we should NOT call setAPI/load - just register our listener in register()
+        if (Bukkit.getPluginManager().getPlugin("packetevents") != null) {
+            plugin.getLogger().info("PacketEvents is loaded as a standalone plugin, will register listener only");
+            ownedByUs = false;
+            return;
+        }
+
+        // Check if API is already set by another plugin
+        try {
+            if (PacketEvents.getAPI() != null) {
+                plugin.getLogger().info("PacketEvents API already initialized by another plugin, will register listener only");
+                ownedByUs = false;
+                return;
+            }
+        } catch (Exception e) {
+            // API not set yet, we'll initialize it
+        }
+
+        // We're the first to initialize PacketEvents
+        plugin.getLogger().info("Initializing PacketEvents API...");
+        PacketEvents.setAPI(SpigotPacketEventsBuilder.build(plugin));
+        PacketEvents.getAPI().getSettings()
+                .reEncodeByDefault(false)
+                .checkForUpdates(false);
+        PacketEvents.getAPI().load();
+        ownedByUs = true;
+        loaded = true;
+    }
+
+    /**
+     * Register the packet listener. Must be called during onEnable() phase after load().
+     */
+    public void register() {
+        // Only call init() if we own the PacketEvents instance
+        if (ownedByUs) {
+            PacketEvents.getAPI().init();
+        }
+        // Always register our listener (priority is set in listener constructor)
+        PacketEvents.getAPI().getEventManager().registerListener(listener);
+        initialized = true;
+        plugin.getLogger().info("PacketEvents listener registered successfully");
+    }
+
+    public boolean isReadyForListeners() {
+        try {
+            return PacketEvents.getAPI() != null && PacketEvents.getAPI().getEventManager() != null;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * Unregister the packet listener and terminate PacketEvents if we own it.
+     */
+    public void unregister() {
+        if (initialized) {
+            // Always unregister our listener to prevent duplicates on reload
+            PacketEvents.getAPI().getEventManager().unregisterListener(listener);
+            // Only terminate if we own the PacketEvents instance AND we called init()
+            // PacketEvents lifecycle requires: load() -> init() -> terminate()
+            // Calling terminate() without init() causes errors
+            if (ownedByUs && loaded) {
+                PacketEvents.getAPI().terminate();
+                loaded = false;
+            }
+            initialized = false;
+        }
+    }
+}

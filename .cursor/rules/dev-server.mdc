@@ -1,0 +1,47 @@
+---
+alwaysApply: true
+---
+
+## Cursor Background Agent: Running the Paper Test Server
+
+This Docker container is configured as a development environment for creating and testing Java-based Minecraft server plugins.
+
+### Environment
+
+- **OS**: Ubuntu (latest)
+- **Java**: OpenJDK 21 (`JAVA_HOME` set, on `PATH`)
+- **User**: `appuser` with home at `/home/appuser`
+- **Shell**: `bash` in `/home/appuser`
+- **Tools**: git, curl, jq, zip/unzip, and common build utilities
+
+### Pre-configured PaperMC Test Server
+
+- **Location**: `/home/appuser/minecraft`
+- **Server**: Paper 1.21.8 (build #35) at `/home/appuser/minecraft/paper.jar`
+- **Plugins**: `/home/appuser/minecraft/plugins` (ProtocolLib is auto-downloaded by Hopper if not present)
+- **EULA**: Pre-accepted in `/home/appuser/minecraft/eula.txt`
+
+### Testing Hopper Auto-Download
+
+To test the auto-download feature:
+1. Ensure ProtocolLib is NOT in the plugins folder
+2. Start the server - lovelycheck should auto-download ProtocolLib via Hopper
+3. To disable auto-download, either:
+   - Set `auto_download_dependencies = false` in `plugins/lovelycheck/config.toml`
+   - Add JVM argument: `-Dlovelycheck.autoDownloadDependencies=false`
+
+### Workflow for Building and Running
+
+1. Clone the plugin source into `/home/appuser` and build using Gradle wrapper:
+   - `./gradlew build`
+   - Output jar: `build/libs/lovelycheck.jar`
+2. Copy the built jar into the server plugins directory:
+   - `cp build/libs/lovelycheck.jar /home/appuser/minecraft/plugins/`
+3. Start the server (from any directory):
+   - `java -Xms1G -Xmx1G -jar /home/appuser/minecraft/paper.jar --nogui`
+
+### Notes
+
+- The server runs in the foreground; for background execution in automated flows, append `&` or use a process supervisor.
+- When iterating, stop the server with `stop`, replace the plugin jar, and restart.
+- Logs are printed to stdout; server files live under `/home/appuser/minecraft`.

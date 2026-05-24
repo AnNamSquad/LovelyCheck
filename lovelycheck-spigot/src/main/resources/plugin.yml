@@ -1,0 +1,211 @@
+main: org.lovelycheck.spigot.LovelyCheckPlugin
+name: lovelycheck
+version: ${projectVersion}
+author: lovelycheck
+description: lovelycheck client/mod detection plugin.
+softdepend:
+  - ViaVersion
+  - ProtocolSupport
+  - ProtocolLib
+  - packetevents
+  - Geyser-Spigot
+  - Floodgate
+  - PlaceholderAPI
+  - GrimAC
+  - Vulcan
+  - Spartan
+api-version: '1.21'
+
+commands:
+  lovelychecker:
+    description: Unified lovelycheck command.
+    usage: /lovelychecker <scan|reload|alerts|check|list|inv>
+    aliases: [lc]
+
+permissions:
+  lovelycheck.command:
+    description: Use the unified /lovelychecker command.
+    default: op
+    children:
+      lovelycheck.check: true
+      lovelycheck.reload: true
+      lovelycheck.alerts: true
+      lovelycheck.command.check: true
+      lovelycheck.command.list: true
+      lovelycheck.command.inv: true
+      lovelychecker.command: true
+      lovelychecker.check: true
+      lovelychecker.reload: true
+      lovelychecker.alerts: true
+      lovelychecker.command.check: true
+      lovelychecker.command.list: true
+      lovelychecker.command.inv: true
+  lovelycheck.command.reload:
+    description: Reload lovelycheck configuration.
+    default: op
+  lovelycheck.command.check:
+    description: Review lovelycheck connection detections for a player.
+    default: op
+  lovelycheck.command.list:
+    description: List lovelycheck detected players.
+    default: op
+  lovelycheck.command.inv:
+    description: Open the lovelycheck inventory view.
+    default: op
+  lovelycheck.alert:
+    description: Receive lovelycheck connection alerts.
+    default: op
+  lovelycheck.bypass:
+    description: Bypass lovelycheck connection checks.
+    default: false
+  lovelychecker.command:
+    description: Use the unified /lovelychecker command.
+    default: op
+    children:
+      lovelychecker.check: true
+      lovelychecker.reload: true
+      lovelychecker.alerts: true
+      lovelychecker.command.check: true
+      lovelychecker.command.list: true
+      lovelychecker.command.inv: true
+  lovelychecker.command.reload:
+    description: Reload lovelycheck configuration.
+    default: op
+    children:
+      lovelycheck.command.reload: true
+  lovelychecker.command.check:
+    description: Review lovelycheck connection and sign detections for a player.
+    default: op
+    children:
+      lovelycheck.command.check: true
+  lovelychecker.command.list:
+    description: List lovelycheck detected players.
+    default: op
+    children:
+      lovelycheck.command.list: true
+  lovelychecker.command.inv:
+    description: Open the lovelycheck inventory view.
+    default: op
+    children:
+      lovelycheck.command.inv: true
+  lovelychecker.alert:
+    description: Receive lovelycheck connection alerts.
+    default: op
+    children:
+      lovelycheck.alert: true
+  lovelychecker.bypass:
+    description: Bypass lovelycheck connection checks.
+    default: false
+    children:
+      lovelycheck.bypass: true
+  lovelycheck.check:
+    description: Use /lovelychecker scan.
+    default: op
+  lovelycheck.reload:
+    description: Use /lovelychecker reload.
+    default: op
+  lovelycheck.alerts:
+    description: Receive alerts and use /lovelychecker alerts.
+    default: op
+  lovelychecker.check:
+    description: Use /lovelychecker scan and /lovelychecker check.
+    default: op
+    children:
+      lovelycheck.check: true
+      lovelycheck.command.check: true
+  lovelychecker.reload:
+    description: Use /lovelychecker reload.
+    default: op
+    children:
+      lovelycheck.reload: true
+      lovelycheck.command.reload: true
+  lovelychecker.alerts:
+    description: Receive alerts and use /lovelychecker alerts.
+    default: op
+    children:
+      lovelycheck.alerts: true
+  lovelychecker.list:
+    description: Use /lovelychecker list.
+    default: op
+    children:
+      lovelycheck.command.list: true
+  lovelychecker.inv:
+    description: Use /lovelychecker inv.
+    default: op
+    children:
+      lovelycheck.command.inv: true
+  lovelycheck.connection.*:
+    description: All lovelycheck connection-detection permissions.
+    default: false
+    children:
+      lovelycheck.command: true
+      lovelycheck.command.reload: true
+      lovelycheck.command.check: true
+      lovelycheck.command.list: true
+      lovelycheck.command.inv: true
+      lovelycheck.alert: true
+      lovelycheck.bypass: true
+      lovelychecker.command: true
+      lovelychecker.command.reload: true
+      lovelychecker.command.check: true
+      lovelychecker.command.list: true
+      lovelychecker.command.inv: true
+      lovelychecker.alert: true
+      lovelychecker.bypass: true
+  lovelychecker.connection.*:
+    description: All lovelychecker connection-detection permissions.
+    default: false
+    children:
+      lovelychecker.command: true
+      lovelychecker.command.reload: true
+      lovelychecker.command.check: true
+      lovelychecker.command.list: true
+      lovelychecker.command.inv: true
+      lovelychecker.alert: true
+      lovelychecker.bypass: true
+      lovelycheck.command: true
+      lovelycheck.command.reload: true
+      lovelycheck.command.check: true
+      lovelycheck.command.list: true
+      lovelycheck.command.inv: true
+      lovelycheck.alert: true
+      lovelycheck.bypass: true
+  lovelycheck.checks.*:
+    description: All lovelycheck sign-check permissions.
+    default: false
+    children:
+      lovelycheck.check: true
+      lovelycheck.reload: true
+      lovelycheck.alerts: true
+      lovelychecker.check: true
+      lovelychecker.reload: true
+      lovelychecker.alerts: true
+  lovelychecker.checks.*:
+    description: All lovelychecker sign-check permissions.
+    default: false
+    children:
+      lovelychecker.check: true
+      lovelychecker.reload: true
+      lovelychecker.alerts: true
+      lovelycheck.check: true
+      lovelycheck.reload: true
+      lovelycheck.alerts: true
+  lovelycheck.*:
+    description: All lovelycheck permissions.
+    default: false
+    children:
+      lovelycheck.connection.*: true
+      lovelycheck.checks.*: true
+      lovelychecker.command: true
+      lovelychecker.connection.*: true
+      lovelychecker.checks.*: true
+  lovelychecker.*:
+    description: All lovelychecker permissions.
+    default: false
+    children:
+      lovelychecker.command: true
+      lovelychecker.connection.*: true
+      lovelychecker.checks.*: true
+      lovelycheck.command: true
+      lovelycheck.connection.*: true
+      lovelycheck.checks.*: true

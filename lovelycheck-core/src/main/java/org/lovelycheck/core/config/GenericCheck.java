@@ -1,0 +1,57 @@
+package org.lovelycheck.core.config;
+
+import java.util.List;
+
+import org.lovelycheck.core.LovelyCheckPlayer;
+import org.lovelycheck.core.LovelyCheckRegistry;
+
+public class GenericCheck {
+
+    private final String id;
+    private final String name;
+    private final List<String> channels;
+    private final String messageHas;
+    private final String messageNotHas;
+    private final String category;
+    private final List<Action> actions;
+
+    public GenericCheck(String id, String name, List<String> channels, String messageHas, String messageNotHas, String category, List<Action> actions) {
+        this.id = id;
+        this.name = name;
+        this.channels = channels;
+        this.messageHas = messageHas;
+        this.messageNotHas = messageNotHas;
+        this.category = category != null ? category : "other";
+        this.actions = actions;
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public boolean pass(LovelyCheckPlayer player, String channel, String message) {
+        if (!this.channels.contains(channel) ||
+                (messageHas != null && !message.toLowerCase().contains(messageHas.toLowerCase()))) {
+            return false;
+        }
+
+        if (messageNotHas != null && message.toLowerCase().contains(messageNotHas.toLowerCase())) {
+            return false;
+        }
+
+        return !Config.SKIP_DUPLICATES.toBool() || !LovelyCheckRegistry.isMessageDuplicate(player, channel, message);
+    }
+
+    public List<Action> getActions() {
+        return actions;
+    }
+
+}

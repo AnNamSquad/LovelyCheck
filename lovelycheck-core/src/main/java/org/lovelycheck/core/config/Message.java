@@ -1,0 +1,89 @@
+package org.lovelycheck.core.config;
+
+import net.kyori.adventure.audience.Audience;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.MiniMessage;
+
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
+import org.jetbrains.annotations.NotNull;
+import org.tomlj.TomlTable;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+public enum Message {
+
+    PREFIX("general.prefix"),
+    PLUGIN_LOADED("logs.loaded"),
+    DEBUG_MESSAGE("logs.debug_message"),
+
+    COMMANDS_HELP("commands.help"),
+    COMMANDS_HELP_SPIGOT("commands.help_spigot"),
+    COMMANDS_RELOAD_SUCCESS("commands.reload_success"),
+    CHECK_NO_MODS("commands.check_no_mods"),
+    CHECK_MODS("commands.check_mods"),
+    MOD_LIST_FORMAT("commands.mod_list_format"),
+    CHECK_LUNAR_MODS("commands.check_lunar_mods"),
+    CHECK_LUNAR_NO_MODS("commands.check_lunar_no_mods"),
+    LUNAR_MOD_LIST_FORMAT("commands.lunar_mod_list_format"),
+    CHECK_FORGE_MODS("commands.check_forge_mods"),
+    CHECK_FORGE_NO_MODS("commands.check_forge_no_mods"),
+    FORGE_MOD_LIST_FORMAT("commands.forge_mod_list_format"),
+    CHECK_PLAYERS("commands.check_players"),
+    CHECK_PLAYERS_EMPTY("commands.check_players_empty"),
+    PLAYER_LIST_FORMAT("commands.player_list_format");
+
+    private static TomlTable result;
+    private static TomlTable fallbackResult;
+
+    public static void setParseResult(TomlTable newResult) {
+        result = newResult;
+    }
+
+    public static void setFallbackParseResult(TomlTable newResult) {
+        fallbackResult = newResult;
+    }
+
+    private final String path;
+
+    Message(String path) {
+        this.path = path;
+    }
+
+    public String getPath() {
+        return path;
+    }
+
+    public String toString() {
+        String value = result != null ? result.getString(path) : null;
+        if (value == null && fallbackResult != null) {
+            value = fallbackResult.getString(path);
+        }
+        return value != null ? value : "";
+    }
+
+    public @NotNull final Component toComponent(final TagResolver.Single... placeholders) {
+        List<TagResolver.Single> outputPlaceholders = new ArrayList<>(Arrays.asList(placeholders));
+        if (this != PREFIX)
+            outputPlaceholders.add(Placeholder.component("prefix", Message.PREFIX.toComponent()));
+        return MiniMessage.miniMessage().deserialize(toString(), TagResolver.resolver(outputPlaceholders));
+    }
+
+    public static Component parse(String message, TagResolver.Single... placeholders) {
+        List<TagResolver.Single> outputPlaceholders = new ArrayList<>(Arrays.asList(placeholders));
+        outputPlaceholders.add(Placeholder.component("prefix", Message.PREFIX.toComponent()));
+        return MiniMessage.miniMessage().deserialize(message,
+                TagResolver.resolver(outputPlaceholders));
+    }
+
+    public void send(Audience audience) {
+        audience.sendMessage(toComponent());
+    }
+
+    public void send(Audience audience, final TagResolver.Single... placeholders) {
+        audience.sendMessage(toComponent(placeholders));
+    }
+
+}

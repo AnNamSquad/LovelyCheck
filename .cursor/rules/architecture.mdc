@@ -1,0 +1,83 @@
+---
+alwaysApply: true
+---
+
+## lovelycheck Project Overview
+
+lovelycheck is a Minecraft client/mod detection plugin for Spigot, Paper, and Purpur. The project is split into shared core logic and one Bukkit-family platform adapter.
+
+### Modules
+
+- `lovelycheck-core`: Core detection logic, configuration (TOML), shared models and messages.
+- `lovelycheck-spigot`: Bukkit/Paper/Purpur adapter. Entry point: `org.lovelycheck.spigot.LovelyCheckPlugin`. Integrates ProtocolLib, PacketEvents, and Adventure.
+
+### Build System
+
+- Gradle (Kotlin DSL) compiling Java with `--release 21`.
+- Plugins:
+  - `com.github.johnrengelman.shadow`: produces shaded artifacts.
+  - `java`, `idea`.
+- Repositories: Maven Central plus Spigot/Paper/Purpur, Sonatype snapshots, CodeMC, ProtocolLib, JitPack.
+- Versioning: `pluginVersion` in root `build.gradle.kts` (e.g., 3.7.0). `${projectVersion}` is expanded in descriptors.
+- Outputs:
+  - Root `shadowJar` builds `build/libs/lovelycheck.jar` and relocates dependencies.
+  - Subprojects also produce shaded `*-all.jar` artifacts.
+
+### Runtime Architecture
+
+- Core provides packet/message parsing, checks, and actions.
+- Platform module:
+  - Initialize core and register commands and listeners.
+  - Bridge platform events/packets into core.
+  - Expose metrics via bStats.
+- Spigot/Paper/Purpur:
+  - Soft-depends on ProtocolLib (defined in `plugin.yml`).
+  - Uses Hopper to auto-download ProtocolLib if not installed.
+  - Uses Adventure Platform at runtime.
+
+### Hopper Integration (Auto-Download Dependencies)
+
+lovelycheck uses Hopper (`md.thomas.hopper:hopper-bukkit`) to automatically download ProtocolLib or PacketEvents if not installed:
+
+- **Registration**: Called in plugin constructor after config is loaded.
+- **Download**: Triggered in `onLoad()` to download and auto-load dependencies.
+- **Sources**: Tries Hangar first, falls back to GitHub releases.
+- **Config**: Can be disabled via `settings.auto_download_dependencies = false` in `config.toml`.
+- **System Property**: Can also be disabled via JVM property `-Dlovelycheck.autoDownloadDependencies=false`.
+
+### Configuration & Content
+
+- TOML configuration in `lovelycheck-core/src/main/resources`:
+  - `config.toml`, `generic.toml`, `forge.toml`, `actions.toml`
+  - `languages/english.toml`
+
+### Dependencies
+
+- Core:
+  - `net.kyori:adventure-text-minimessage:4.14.0`
+  - `io.github.xtomlj:xtomlj:1.1.0`
+- Spigot:
+  - compileOnly: Purpur API, ProtocolLib, PacketEvents Spigot, PlaceholderAPI.
+  - implementation: `org.bstats:bstats-bukkit:3.1.0`, Hopper, SQLite.
+- Root:
+  - `org.yaml:snakeyaml:1.30`, `adventure-text-minimessage:4.13.0`
+- Relocations (root `shadowJar`): shaded libraries relocate under `org.lovelycheck.shaded.*`.
+
+### Commands & Plugin Descriptors
+
+- Spigot/Paper/Purpur: `lovelycheck-spigot/src/main/resources/plugin.yml`
+  - `main: org.lovelycheck.spigot.LovelyCheckPlugin`
+  - `softdepend: [ViaVersion, ProtocolSupport, ProtocolLib]`
+  - `api-version: 1.21`
+
+### Development Workflow
+
+- Build: `./gradlew build` (root wires `build` to `shadowJar`).
+- Final artifact: `build/libs/lovelycheck.jar`.
+- Optional copy: enable `copyJar=true` in `gradle.properties` and set `lovelycheck_plugin_path`.
+
+### Maintenance Triggers
+
+- Bump platform APIs or dependencies.
+- Update descriptors and ProtocolLib requirement for new Minecraft versions.
+- Keep Java release at 21 unless deliberately migrating all targets.
