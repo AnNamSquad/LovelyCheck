@@ -18,6 +18,8 @@ bedrock:
 alerts:
   default-enabled: true
 
+silent-check: false
+
 messages:
   no-permission: "{prefix}<red>You don't have permission to do this."
   player-not-found: "{prefix}<red>Player <white>{player} <red>not found."

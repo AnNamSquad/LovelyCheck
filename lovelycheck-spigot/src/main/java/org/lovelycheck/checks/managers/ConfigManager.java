@@ -153,6 +153,8 @@ public class ConfigManager {
     public boolean isOnlyFirstJoin()     { return hacksConfig.getBoolean("auto-check-on-join.only-first-join", false); }
     public long getJoinCheckDelayTicks() { return hacksConfig.getLong("auto-check-on-join.delay-ticks", 40L); }
 
+    public boolean isSilentCheck() { return hacksConfig.getBoolean("silent-check", false); }
+
     public int getTimeoutTicks()      { return hacksConfig.getInt("timeout-ticks", 200); }
     public int getBetweenSignTicks()  { return hacksConfig.getInt("between-sign-ticks", 20); }
 

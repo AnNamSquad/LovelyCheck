@@ -84,7 +84,7 @@ public class CheckManager {
                 batches, autoCheck, reason);
         activeChecks.put(uuid, data);
 
-        if (initiator != null)
+        if (initiator != null && !plugin.getConfigManager().isSilentCheck())
             initiator.sendMessage(plugin.getMessageManager().get("check-started",
                     Map.of("player", target.getName())));
 
@@ -103,6 +103,10 @@ public class CheckManager {
         List<HackDefinition> batch = data.getCurrentBatchHacks();
 
         restoreCurrentSign(data);
+
+        if (processFakePacketBatch(target, data, batch, uuid)) {
+            return;
+        }
 
         Location signLoc = SignUtil.findAirBlock(target);
         if (signLoc == null) {
@@ -142,7 +146,29 @@ public class CheckManager {
             }, 1L);
         });
 
-        BukkitTask timeout = Bukkit.getScheduler().runTaskLater(plugin, () -> {
+        data.setSignTimeoutTask(scheduleBatchTimeout(uuid, batch));
+    }
+
+    private boolean processFakePacketBatch(Player target, CheckPlayerData data,
+                                           List<HackDefinition> batch, UUID uuid) {
+        Location signLoc = SignUtil.findHiddenFakeSignLocation(target, data.getCurrentBatch());
+        if (signLoc == null) {
+            return false;
+        }
+
+        data.setSignLocation(signLoc);
+        data.setOriginalState(null);
+        if (!plugin.openFakeSignCheck(target, signLoc, batch)) {
+            data.setSignLocation(null);
+            return false;
+        }
+
+        data.setSignTimeoutTask(scheduleBatchTimeout(uuid, batch));
+        return true;
+    }
+
+    private BukkitTask scheduleBatchTimeout(UUID uuid, List<HackDefinition> batch) {
+        return Bukkit.getScheduler().runTaskLater(plugin, () -> {
             CheckPlayerData d = activeChecks.get(uuid);
             if (d == null) return;
             restoreCurrentSign(d);
@@ -151,8 +177,6 @@ public class CheckManager {
             d.incrementBatch();
             scheduleNextOrFinish(uuid);
         }, plugin.getConfigManager().getTimeoutTicks());
-
-        data.setSignTimeoutTask(timeout);
     }
 
     private Component buildComponent(HackDefinition hack) {
@@ -189,8 +213,10 @@ public class CheckManager {
                             NamedTextColor.YELLOW))
                     .append(Component.text(target.getName(), NamedTextColor.WHITE))
                     .append(Component.text(".", NamedTextColor.YELLOW));
-            plugin.getMessageManager().broadcastAlerts(epMsg);
-            notifyInitiator(data, epMsg);
+            if (!plugin.getConfigManager().isSilentCheck()) {
+                plugin.getMessageManager().broadcastAlerts(epMsg);
+                notifyInitiator(data, epMsg);
+            }
         }
 
         for (int i = 0; i < batch.size(); i++) {
@@ -370,6 +396,7 @@ public class CheckManager {
     }
 
     private void sendResultLine(CheckPlayerData data, Component body) {
+        if (plugin.getConfigManager().isSilentCheck()) return;
         Component message = MM.deserialize(plugin.getConfigManager().getPrefix()).append(body);
         plugin.getMessageManager().broadcastAlerts(message);
         notifyInitiator(data, message);
@@ -453,6 +480,10 @@ public class CheckManager {
         BlockState originalState = data.getOriginalState();
         data.setSignLocation(null);
         data.setOriginalState(null);
+        if (originalState == null) {
+            plugin.restoreFakeSignCheck(data.getTargetUUID(), loc);
+            return;
+        }
         Bukkit.getScheduler().runTask(plugin, () -> {
             try { if (originalState != null) originalState.update(true, false); }
             catch (Exception e) { plugin.getLogger().warning("[lovelycheck] Restore: " + e.getMessage()); }

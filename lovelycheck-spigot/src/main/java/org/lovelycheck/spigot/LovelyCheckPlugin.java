@@ -3,8 +3,11 @@ package org.lovelycheck.spigot;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.command.TabCompleter;
+import org.bukkit.Location;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.PluginManager;
 import org.lovelycheck.spigot.LovelyCheckConnectionPlugin;
+import org.lovelycheck.checks.HackDefinition;
 import org.lovelycheck.checks.commands.LovelyCheckerCommand;
 import org.lovelycheck.checks.listeners.AntiCheatListener;
 import org.lovelycheck.checks.listeners.JoinListener;
@@ -14,7 +17,10 @@ import org.lovelycheck.checks.managers.ClientDataManager;
 import org.lovelycheck.checks.managers.ConfigManager;
 import org.lovelycheck.checks.managers.DatabaseManager;
 import org.lovelycheck.checks.managers.MessageManager;
+import org.lovelycheck.spigot.protocol.PacketEventsSignCheckPacketBridge;
+import org.lovelycheck.spigot.protocol.SignCheckPacketBridge;
 
+import java.util.List;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -28,6 +34,7 @@ public class LovelyCheckPlugin extends LovelyCheckConnectionPlugin {
     private DatabaseManager databaseManager;
     private CheckManager checkManager;
     private ClientDataManager clientDataManager;
+    private SignCheckPacketBridge signCheckPacketBridge;
     private final Set<UUID> alertsDisabled = new HashSet<>();
 
     public LovelyCheckPlugin() throws NoSuchFieldException, IllegalAccessException {
@@ -55,6 +62,7 @@ public class LovelyCheckPlugin extends LovelyCheckConnectionPlugin {
         databaseManager = new DatabaseManager(this);
         clientDataManager = new ClientDataManager();
         checkManager = new CheckManager(this);
+        enableSignCheckPacketBridge();
 
         LovelyCheckerCommand lovelyCheckerCommand = new LovelyCheckerCommand(this);
         registerCommand("lovelychecker", lovelyCheckerCommand, lovelyCheckerCommand);
@@ -74,8 +82,26 @@ public class LovelyCheckPlugin extends LovelyCheckConnectionPlugin {
         if (checkManager != null) {
             checkManager.cleanup();
         }
+        if (signCheckPacketBridge != null) {
+            signCheckPacketBridge.unregister();
+            signCheckPacketBridge = null;
+        }
         if (databaseManager != null) {
             databaseManager.close();
+        }
+    }
+
+    private void enableSignCheckPacketBridge() {
+        if (!isPacketEventsAvailable()) {
+            return;
+        }
+        try {
+            signCheckPacketBridge = new PacketEventsSignCheckPacketBridge(this);
+            signCheckPacketBridge.register();
+            getLogger().info("lovelycheck fake sign-check packet flow enabled.");
+        } catch (Throwable e) {
+            signCheckPacketBridge = null;
+            getLogger().warning("Fake sign-check packet flow disabled: " + e.getMessage());
         }
     }
 
@@ -109,6 +135,16 @@ public class LovelyCheckPlugin extends LovelyCheckConnectionPlugin {
 
     public CheckManager getCheckManager() {
         return checkManager;
+    }
+
+    public boolean openFakeSignCheck(Player player, Location location, List<HackDefinition> batch) {
+        return signCheckPacketBridge != null && signCheckPacketBridge.openFakeSign(player, location, batch);
+    }
+
+    public void restoreFakeSignCheck(UUID playerUuid, Location location) {
+        if (signCheckPacketBridge != null) {
+            signCheckPacketBridge.restoreFakeSign(playerUuid, location);
+        }
     }
 
     public ClientDataManager getClientDataManager() {

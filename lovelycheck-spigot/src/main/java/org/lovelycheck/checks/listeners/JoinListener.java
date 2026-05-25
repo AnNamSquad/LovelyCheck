@@ -53,8 +53,10 @@ public class JoinListener implements Listener {
                     if (!player.isOnline()) return;
                     java.util.List<HackDefinition> hacks = plugin.getConfigManager().getJoinLovelyCheck();
                     if (hacks.isEmpty()) return;
-                    plugin.getMessageManager().broadcastAlerts(
-                            plugin.getMessageManager().get("join-check", Map.of("player", player.getName())));
+                    if (!plugin.getConfigManager().isSilentCheck()) {
+                        plugin.getMessageManager().broadcastAlerts(
+                                plugin.getMessageManager().get("join-check", Map.of("player", player.getName())));
+                    }
                     plugin.getCheckManager().startCheck(player, null, hacks, true, "Auto-join check");
                 }, plugin.getConfigManager().getJoinCheckDelayTicks());
             }
