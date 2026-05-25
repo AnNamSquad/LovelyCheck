@@ -4,9 +4,11 @@ import org.bukkit.Location;
 import org.bukkit.block.BlockState;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public class CheckPlayerData {
@@ -23,6 +25,10 @@ public class CheckPlayerData {
     private Location signLocation;
     private BlockState originalState;
     private BukkitTask signTimeoutTask;
+    private boolean currentBatchFakePacket;
+    private boolean forceRealSignForCurrentBatch;
+    private boolean translationMaskingDetected;
+    private final Set<String> translationMaskedHackIds = new HashSet<>();
 
     public CheckPlayerData(UUID targetUUID, UUID initiatorUUID,
                            List<List<HackDefinition>> batches,
@@ -55,4 +61,19 @@ public class CheckPlayerData {
     public void setOriginalState(BlockState s)   { this.originalState = s; }
     public BukkitTask getSignTimeoutTask()       { return signTimeoutTask; }
     public void setSignTimeoutTask(BukkitTask t) { this.signTimeoutTask = t; }
+    public boolean isCurrentBatchFakePacket()    { return currentBatchFakePacket; }
+    public void setCurrentBatchFakePacket(boolean currentBatchFakePacket) {
+        this.currentBatchFakePacket = currentBatchFakePacket;
+    }
+    public boolean isForceRealSignForCurrentBatch() { return forceRealSignForCurrentBatch; }
+    public void setForceRealSignForCurrentBatch(boolean forceRealSignForCurrentBatch) {
+        this.forceRealSignForCurrentBatch = forceRealSignForCurrentBatch;
+    }
+    public boolean isTranslationMaskingDetected() { return translationMaskingDetected; }
+    public void setTranslationMaskingDetected(boolean translationMaskingDetected) {
+        this.translationMaskingDetected = translationMaskingDetected;
+    }
+    public void addTranslationMaskedHackId(String id) { translationMaskedHackIds.add(id); }
+    public boolean isTranslationMaskedHackId(String id) { return translationMaskedHackIds.contains(id); }
+    public Set<String> getTranslationMaskedHackIds() { return Set.copyOf(translationMaskedHackIds); }
 }

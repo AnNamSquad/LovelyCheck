@@ -19,6 +19,16 @@ alerts:
   default-enabled: true
 
 silent-check: false
+fake-sign-packets: false
+
+# Detect clients that make configured mod translation/keybind probes look
+# vanilla while connection-time evidence already matched the same configured
+# mod. This catches OpSec-style masking without flagging true vanilla clients.
+detect-translation-masking:
+  enabled: true
+  minimum-checks: 1
+  punishable: true
+  display-name: "Translation Masking Bypass"
 
 messages:
   no-permission: "{prefix}<red>You don't have permission to do this."

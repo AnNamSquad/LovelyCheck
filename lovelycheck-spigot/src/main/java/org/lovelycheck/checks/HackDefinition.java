@@ -23,4 +23,30 @@ public class HackDefinition {
     public String getKey()         { return key; }
     public DetectionMode getMode() { return mode; }
     public String getFallback()    { return fallback; }
+
+    public boolean matchesModId(String modId) {
+        if (modId == null || modId.isBlank()) {
+            return false;
+        }
+        String normalizedModId = normalizeToken(modId);
+        if (normalizedModId.isEmpty()) {
+            return false;
+        }
+        return normalizeToken(id).equals(normalizedModId)
+                || normalizeToken(displayName).equals(normalizedModId)
+                || containsKeyToken(normalizedModId);
+    }
+
+    private boolean containsKeyToken(String normalizedModId) {
+        for (String token : key.split("[^A-Za-z0-9_-]+")) {
+            if (normalizeToken(token).equals(normalizedModId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizeToken(String value) {
+        return value.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+    }
 }

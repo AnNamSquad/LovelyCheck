@@ -154,6 +154,20 @@ public class ConfigManager {
     public long getJoinCheckDelayTicks() { return hacksConfig.getLong("auto-check-on-join.delay-ticks", 40L); }
 
     public boolean isSilentCheck() { return hacksConfig.getBoolean("silent-check", false); }
+    public boolean isFakeSignPacketsEnabled() { return hacksConfig.getBoolean("fake-sign-packets", false); }
+    public boolean isDetectTranslationMaskingEnabled() {
+        return hacksConfig.getBoolean("detect-translation-masking.enabled", true);
+    }
+    public int getTranslationMaskingMinimumChecks() {
+        return Math.max(1, hacksConfig.getInt("detect-translation-masking.minimum-checks", 1));
+    }
+    public boolean isTranslationMaskingPunishable() {
+        return hacksConfig.getBoolean("detect-translation-masking.punishable", true);
+    }
+    public String getTranslationMaskingDisplayName() {
+        return hacksConfig.getString("detect-translation-masking.display-name",
+                "Translation Masking Bypass");
+    }
 
     public int getTimeoutTicks()      { return hacksConfig.getInt("timeout-ticks", 200); }
     public int getBetweenSignTicks()  { return hacksConfig.getInt("between-sign-ticks", 20); }

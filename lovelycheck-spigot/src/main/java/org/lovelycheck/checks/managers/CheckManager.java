@@ -16,6 +16,9 @@ import org.bukkit.block.Sign;
 import org.bukkit.block.sign.Side;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
+import org.lovelycheck.core.LovelyCheckPlayer;
+import org.lovelycheck.core.LovelyCheckRegistry;
+import org.lovelycheck.core.config.GenericCheck;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,7 +28,8 @@ public class CheckManager {
     private static final String CTRL_KEYBIND  = "key.forward";
     private static final int    LINES_PER_SIGN = 3;
     private static final MiniMessage MM = MiniMessage.miniMessage();
-    private static final String OPSEC_BYPASS_NAME = "OpSec Bypass";
+    private static final String PROTECTED_BYPASS_NAME = "OpSec Bypass";
+    private static final String TRANSLATION_MASKING_RESULT_ID = "translation-masking-bypass";
 
     private final LovelyCheckPlugin plugin;
     private final Map<UUID, CheckPlayerData> activeChecks  = new ConcurrentHashMap<>();
@@ -104,9 +108,13 @@ public class CheckManager {
 
         restoreCurrentSign(data);
 
-        if (processFakePacketBatch(target, data, batch, uuid)) {
+        if (plugin.getConfigManager().isFakeSignPacketsEnabled()
+                && !data.isForceRealSignForCurrentBatch()
+                && processFakePacketBatch(target, data, batch, uuid)) {
             return;
         }
+        data.setForceRealSignForCurrentBatch(false);
+        data.setCurrentBatchFakePacket(false);
 
         Location signLoc = SignUtil.findAirBlock(target);
         if (signLoc == null) {
@@ -160,9 +168,11 @@ public class CheckManager {
         data.setOriginalState(null);
         if (!plugin.openFakeSignCheck(target, signLoc, batch)) {
             data.setSignLocation(null);
+            data.setCurrentBatchFakePacket(false);
             return false;
         }
 
+        data.setCurrentBatchFakePacket(true);
         data.setSignTimeoutTask(scheduleBatchTimeout(uuid, batch));
         return true;
     }
@@ -171,6 +181,11 @@ public class CheckManager {
         return Bukkit.getScheduler().runTaskLater(plugin, () -> {
             CheckPlayerData d = activeChecks.get(uuid);
             if (d == null) return;
+            if (d.isCurrentBatchFakePacket()) {
+                restoreCurrentSign(d);
+                retryCurrentBatchWithRealSign(uuid, d, "fake sign timed out");
+                return;
+            }
             restoreCurrentSign(d);
             for (HackDefinition h : batch)
                 d.getResults().put(h.getId(), HackResult.PROTECTED);
@@ -192,9 +207,17 @@ public class CheckManager {
         if (data == null) return;
 
         if (data.getSignTimeoutTask() != null) data.getSignTimeoutTask().cancel();
+        boolean fakePacketResponse = data.isCurrentBatchFakePacket();
         restoreCurrentSign(data);
 
         List<HackDefinition> batch = data.getCurrentBatchHacks();
+        if (fakePacketResponse && hasUnsafeFakePacketResponse(batch, lines)) {
+            retryCurrentBatchWithRealSign(uuid, data, "raw component response");
+            return;
+        }
+        data.setCurrentBatchFakePacket(false);
+        data.setForceRealSignForCurrentBatch(false);
+
         String ctrlResp = lines.length > 3 ? lines[3].strip() : "";
 
         boolean exploitPreventer = ctrlResp.equalsIgnoreCase(CTRL_KEYBIND);
@@ -230,6 +253,110 @@ public class CheckManager {
 
         data.incrementBatch();
         scheduleNextOrFinish(uuid);
+    }
+
+    private void evaluateTranslationMasking(UUID uuid, String targetName, CheckPlayerData data) {
+        ConfigManager cfg = plugin.getConfigManager();
+        if (!cfg.isDetectTranslationMaskingEnabled()
+                || data.isTranslationMaskingDetected()) {
+            return;
+        }
+
+        MaskingStats stats = collectMaskingStats(uuid, data);
+        if (stats.notDetectedEvidenceMatches() < cfg.getTranslationMaskingMinimumChecks()) {
+            return;
+        }
+
+        data.setTranslationMaskingDetected(true);
+        plugin.getLogger().warning("[lovelycheck] Translation masking detected for "
+                + targetName + ": " + stats.notDetectedEvidenceMatches()
+                + " configured probes returned vanilla-safe values despite matching connection evidence.");
+    }
+
+    private MaskingStats collectMaskingStats(UUID uuid, CheckPlayerData data) {
+        LovelyCheckPlayer playerData = LovelyCheckRegistry.getPlayerIfPresent(uuid);
+        if (playerData == null || playerData.isBedrockDetected()) {
+            return new MaskingStats(0);
+        }
+
+        int notDetectedEvidenceMatches = 0;
+        for (List<HackDefinition> batch : data.getBatches()) {
+            for (HackDefinition hack : batch) {
+                HackResult result = data.getResults().get(hack.getId());
+                if (result != HackResult.NOT_DETECTED || !hasMatchingConnectionEvidence(playerData, hack)) {
+                    continue;
+                }
+                data.addTranslationMaskedHackId(hack.getId());
+                notDetectedEvidenceMatches++;
+            }
+        }
+
+        return new MaskingStats(notDetectedEvidenceMatches);
+    }
+
+    private boolean hasMatchingConnectionEvidence(LovelyCheckPlayer playerData, HackDefinition hack) {
+        for (String checkId : playerData.getGenericChecks()) {
+            if (hack.matchesModId(checkId)) {
+                return true;
+            }
+            GenericCheck check = LovelyCheckRegistry.getCheck(checkId);
+            if (check != null && hack.matchesModId(check.getName())) {
+                return true;
+            }
+        }
+        for (var mod : playerData.getForgeMods()) {
+            if (hack.matchesModId(mod.getModId())) {
+                return true;
+            }
+        }
+        for (var mod : playerData.getLunarMods()) {
+            if (hack.matchesModId(mod.getId()) || hack.matchesModId(mod.getDisplayName())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasUnsafeFakePacketResponse(List<HackDefinition> batch, String[] lines) {
+        for (int i = 0; i < batch.size() && i < lines.length; i++) {
+            String response = lines[i] != null ? lines[i].strip() : "";
+            if (looksLikeRawComponent(response) || response.contains(batch.get(i).getKey())) {
+                return true;
+            }
+        }
+        String control = lines.length > 3 && lines[3] != null ? lines[3].strip() : "";
+        return looksLikeRawComponent(control);
+    }
+
+    private boolean looksLikeRawComponent(String response) {
+        if (response.isEmpty()) {
+            return false;
+        }
+        String lower = response.toLowerCase(Locale.ROOT);
+        return (lower.startsWith("{") || lower.startsWith("["))
+                && (lower.contains("\"translate\"")
+                || lower.contains("\"keybind\"")
+                || lower.contains("\"fallback\"")
+                || lower.contains("\"text\""));
+    }
+
+    private void retryCurrentBatchWithRealSign(UUID uuid, CheckPlayerData data, String reason) {
+        data.setCurrentBatchFakePacket(false);
+        data.setForceRealSignForCurrentBatch(true);
+        plugin.getLogger().warning("[lovelycheck] Fake sign-check packet flow for "
+                + uuid + " returned an unsafe result (" + reason + "); retrying with real-sign fallback.");
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            CheckPlayerData current = activeChecks.get(uuid);
+            Player target = Bukkit.getPlayer(uuid);
+            if (current != data) {
+                return;
+            }
+            if (target == null || !target.isOnline()) {
+                finishCheck(uuid);
+                return;
+            }
+            processBatch(target, data);
+        });
     }
 
     private void scheduleNextOrFinish(UUID uuid) {
@@ -282,6 +409,8 @@ public class CheckManager {
                 .map(Player::getName).orElse("Console")
                 : (data.isAutoCheck() ? "AutoCheck" : "Console");
 
+        evaluateTranslationMasking(uuid, targetName, data);
+
         List<HackDefinition> allHacks = data.getBatches().stream().flatMap(List::stream).toList();
         Map<HackResult, List<String>> resultGroups = new EnumMap<>(HackResult.class);
         for (HackResult result : HackResult.values()) {
@@ -291,7 +420,11 @@ public class CheckManager {
 
         for (HackDefinition hack : allHacks) {
             HackResult r = data.getResults().getOrDefault(hack.getId(), HackResult.SKIPPED);
-            resultGroups.get(r).add(hack.getDisplayName());
+            if (data.isTranslationMaskedHackId(hack.getId())) {
+                resultGroups.get(HackResult.PROTECTED).add(hack.getDisplayName());
+            } else {
+                resultGroups.get(r).add(hack.getDisplayName());
+            }
             resultText.append(hack.getDisplayName()).append(": ").append(r.name()).append("\n");
         }
 
@@ -301,11 +434,14 @@ public class CheckManager {
         int cleanCount = resultGroups.get(HackResult.NOT_DETECTED).size();
         boolean anyDetected = !detected.isEmpty();
         boolean anyProtected = !protectedResults.isEmpty();
-        boolean allClean = !anyDetected && !anyProtected && skipped.isEmpty();
         ConfigManager cfg = plugin.getConfigManager();
+        boolean maskingDetected = data.isTranslationMaskingDetected();
+        boolean maskingPunishable = maskingDetected && cfg.isTranslationMaskingPunishable();
+        boolean allClean = !anyDetected && !anyProtected && !maskingDetected && skipped.isEmpty();
         boolean protectedPunishable = anyProtected && cfg.isPunishProtectedEnabled();
-        List<String> violations = buildViolations(detected, protectedPunishable);
-        boolean punishable = anyDetected || protectedPunishable;
+        List<String> violations = buildViolations(detected, protectedPunishable, maskingPunishable);
+        boolean punishable = anyDetected || protectedPunishable || maskingPunishable;
+        String maskingDisplayName = cfg.getTranslationMaskingDisplayName();
 
         if (!violations.isEmpty()) {
             latestDetectedHacks.put(uuid, violations);
@@ -335,8 +471,10 @@ public class CheckManager {
         if (anyProtected) {
             sendResultLine(data, resultNamesLine("Protected", NamedTextColor.YELLOW, protectedResults));
         }
-        if (protectedPunishable) {
-            sendResultLine(data, resultNamesLine("Bypass", NamedTextColor.RED, List.of(OPSEC_BYPASS_NAME)));
+        if (maskingDetected) {
+            sendResultLine(data, resultNamesLine("Bypass", NamedTextColor.RED, List.of(maskingDisplayName)));
+        } else if (protectedPunishable) {
+            sendResultLine(data, resultNamesLine("Bypass", NamedTextColor.RED, List.of(PROTECTED_BYPASS_NAME)));
         }
         if (!skipped.isEmpty()) {
             sendResultLine(data, resultNamesLine("Skipped", NamedTextColor.GRAY, skipped));
@@ -349,11 +487,18 @@ public class CheckManager {
                 "hack", targetName, targetUUID, checkerName, data.getReason(), punishable);
         for (HackDefinition hack : allHacks) {
             HackResult r = data.getResults().getOrDefault(hack.getId(), HackResult.SKIPPED);
-            plugin.getDatabaseManager().saveHackResult(scanId, hack.getId(), hack.getDisplayName(), r.name());
+            HackResult storedResult = data.isTranslationMaskedHackId(hack.getId())
+                    ? HackResult.PROTECTED
+                    : r;
+            plugin.getDatabaseManager().saveHackResult(scanId, hack.getId(),
+                    hack.getDisplayName(), storedResult.name());
         }
-        if (protectedPunishable) {
+        if (maskingDetected) {
+            plugin.getDatabaseManager().saveHackResult(scanId, TRANSLATION_MASKING_RESULT_ID,
+                    maskingDisplayName, HackResult.DETECTED.name());
+        } else if (protectedPunishable) {
             plugin.getDatabaseManager().saveHackResult(scanId, "opsec-bypass",
-                    OPSEC_BYPASS_NAME, HackResult.DETECTED.name());
+                    PROTECTED_BYPASS_NAME, HackResult.DETECTED.name());
         }
 
         if (cfg.isDiscordEnabled()) {
@@ -361,9 +506,21 @@ public class CheckManager {
                     .map(HackDefinition::getDisplayName)
                     .reduce((a, b) -> a + ", " + b).orElse("none");
             String discordResultText = resultText.toString().trim();
-            if (protectedPunishable) {
+            if (maskingDetected) {
+                String protectedText = data.getTranslationMaskedHackIds().stream()
+                        .map(plugin.getConfigManager().getHacks()::get)
+                        .filter(Objects::nonNull)
+                        .map(hack -> hack.getDisplayName() + ": " + HackResult.PROTECTED.name())
+                        .reduce((a, b) -> a + "\n" + b)
+                        .orElse("");
+                if (!protectedText.isBlank()) {
+                    discordResultText = (discordResultText + "\n" + protectedText).trim();
+                }
                 discordResultText = (discordResultText + "\n"
-                        + OPSEC_BYPASS_NAME + ": DETECTED").trim();
+                        + maskingDisplayName + ": DETECTED").trim();
+            } else if (protectedPunishable) {
+                discordResultText = (discordResultText + "\n"
+                        + PROTECTED_BYPASS_NAME + ": DETECTED").trim();
             }
             WebhookUtil.sendResult(cfg.getWebhookUrl(), cfg.getEmbedColor(),
                     cfg.getDiscordMessage(), targetName, checkerName,
@@ -407,10 +564,17 @@ public class CheckManager {
                 .append(Component.text(compactNames(names), NamedTextColor.WHITE));
     }
 
-    private List<String> buildViolations(List<String> detected, boolean includeBypass) {
+    private record MaskingStats(int notDetectedEvidenceMatches) {
+    }
+
+    private List<String> buildViolations(List<String> detected, boolean includeProtectedBypass,
+                                         boolean includeMaskingBypass) {
         LinkedHashSet<String> names = new LinkedHashSet<>(detected);
-        if (includeBypass) {
-            names.add(OPSEC_BYPASS_NAME);
+        if (includeProtectedBypass) {
+            names.add(PROTECTED_BYPASS_NAME);
+        }
+        if (includeMaskingBypass) {
+            names.add(plugin.getConfigManager().getTranslationMaskingDisplayName());
         }
         return List.copyOf(names);
     }
@@ -426,7 +590,8 @@ public class CheckManager {
                 targetName, targetUUID, offense, duration, detections);
         String commandTemplate = kickOnly ? cfg.getPunishmentKickCommand() : cfg.getPunishmentCommand();
         String command = applyPunishmentPlaceholders(commandTemplate,
-                targetName, targetUUID, offense, duration, detections);
+                targetName, targetUUID, offense, duration, detections)
+                .replace("%reason%", reason);
 
         plugin.getDatabaseManager().savePunishment(targetName, targetUUID, offense, duration, reason);
 
