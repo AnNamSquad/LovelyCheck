@@ -18,7 +18,7 @@ api-version: '1.21'
 commands:
   lovelychecker:
     description: Unified lovelycheck command.
-    usage: /lovelychecker <scan|reload|alerts|check|list|inv>
+    usage: /lovelychecker <scan|reload|alerts|check|list|inv|edit>
     aliases: [lc]
 
 permissions:

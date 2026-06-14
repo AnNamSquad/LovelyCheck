@@ -11,7 +11,30 @@ public class LovelyCheckRegistry {
     private final static Map<UUID, LovelyCheckPlayer> players = new ConcurrentHashMap<>();
     private final static Map<String, Action> actions = new HashMap<>();
     private final static Map<String, GenericCheck> genericChecks = new HashMap<>();
-    private final static Map<LovelyCheckPlayer, Set<MessagePayload>> messageHistory = new ConcurrentHashMap<>();
+    private final static Map<LovelyCheckPlayer, BoundedSet<MessagePayload>> messageHistory = new ConcurrentHashMap<>();
+
+    private static class BoundedSet<E> {
+        private final int maxSize;
+        private final Map<E, Boolean> map;
+
+        public BoundedSet(int maxSize) {
+            this.maxSize = maxSize;
+            this.map = new LinkedHashMap<E, Boolean>(maxSize, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<E, Boolean> eldest) {
+                    return size() > BoundedSet.this.maxSize;
+                }
+            };
+        }
+
+        public synchronized boolean add(E e) {
+            return map.put(e, Boolean.TRUE) == null;
+        }
+
+        public synchronized void clear() {
+            map.clear();
+        }
+    }
 
     public static void clear() {
         players.clear();
@@ -95,7 +118,7 @@ public class LovelyCheckRegistry {
 
     public static boolean isMessageDuplicate(LovelyCheckPlayer player, String channel, String message) {
         MessagePayload payload = new MessagePayload(channel, message);
-        Set<MessagePayload> playerHistory = messageHistory.computeIfAbsent(player, k -> new HashSet<>());
+        BoundedSet<MessagePayload> playerHistory = messageHistory.computeIfAbsent(player, k -> new BoundedSet<>(128));
         return !playerHistory.add(payload);
     }
 }

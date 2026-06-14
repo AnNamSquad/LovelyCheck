@@ -8,6 +8,23 @@ import java.time.Instant;
 
 public class WebhookUtil {
 
+    private static final java.util.concurrent.ThreadPoolExecutor executor;
+    static {
+        java.util.concurrent.ThreadPoolExecutor tpe = new java.util.concurrent.ThreadPoolExecutor(
+                1, 2,
+                60L, java.util.concurrent.TimeUnit.SECONDS,
+                new java.util.concurrent.LinkedBlockingQueue<>(100),
+                r -> {
+                    Thread t = new Thread(r, "lovelycheck-webhook-thread");
+                    t.setDaemon(true);
+                    return t;
+                },
+                new java.util.concurrent.ThreadPoolExecutor.DiscardOldestPolicy()
+        );
+        tpe.allowCoreThreadTimeOut(true);
+        executor = tpe;
+    }
+
     public static void sendResult(String webhookUrl, int color, String messageTemplate,
                                   String playerName, String checkerName, String reason,
                                   String hacksChecked, String resultText) {
@@ -86,7 +103,7 @@ public class WebhookUtil {
     }
 
     private static void sendJson(String webhookUrl, String json) {
-        new Thread(() -> {
+        executor.submit(() -> {
             try {
                 HttpURLConnection conn =
                         (HttpURLConnection) URI.create(webhookUrl).toURL().openConnection();
@@ -106,7 +123,7 @@ public class WebhookUtil {
             } catch (Exception e) {
                 System.err.println("[lovelycheck] Webhook error: " + e.getMessage());
             }
-        }, "lovelycheck-webhook").start();
+        });
     }
 
     private static String escapeJson(String s) {

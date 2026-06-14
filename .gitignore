@@ -72,3 +72,27 @@ local.properties
 # AI section
 .claude/
 .cursor/
+
+# Minecraft Server testing & runtime files
+/run/
+/server/
+/cache/
+/logs/
+/plugins/
+/world/
+/world_nether/
+/world_the_end/
+/eula.txt
+/usercache.json
+/banned-players.json
+/banned-ips.json
+/ops.json
+/whitelist.json
+/server.properties
+/help.txt
+/permissions.yml
+/commands.yml
+/bukkit.yml
+/spigot.yml
+/paper.yml
+/purpur.yml

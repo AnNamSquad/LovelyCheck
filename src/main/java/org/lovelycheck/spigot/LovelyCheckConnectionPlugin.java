@@ -9,6 +9,7 @@ import org.lovelycheck.core.config.ConfigsManager;
 import org.lovelycheck.core.config.Message;
 import org.lovelycheck.spigot.hopper.LovelyCheckHopper;
 import org.lovelycheck.spigot.listeners.LovelyCheckPlayerListeners;
+import org.lovelycheck.spigot.listeners.PendingPayloads;
 import org.lovelycheck.spigot.listeners.LunarApolloListener;
 import org.lovelycheck.spigot.protocol.PacketEventsIntegration;
 import org.lovelycheck.spigot.utils.logs.Logs;
@@ -87,6 +88,7 @@ public class LovelyCheckConnectionPlugin extends JavaPlugin {
         // Initialize bedrock detection (auto-detects Geyser/Floodgate APIs)
         BedrockDetector.initialize(getLogger());
         Bukkit.getPluginManager().registerEvents(new LovelyCheckPlayerListeners(), this);
+        PendingPayloads.startPruningTask(this);
 
         if (packetEventsAvailable && packetEventsIntegration != null) {
             getLogger().info("Using PacketEvents for packet interception");

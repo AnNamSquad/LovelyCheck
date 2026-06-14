@@ -1,6 +1,15 @@
 package org.lovelycheck.spigot.checks.commands;
 
+import io.papermc.paper.dialog.Dialog;
+import io.papermc.paper.dialog.DialogResponseView;
+import io.papermc.paper.registry.data.dialog.DialogBase;
+import io.papermc.paper.registry.data.dialog.type.DialogType;
+import io.papermc.paper.registry.data.dialog.ActionButton;
+import io.papermc.paper.registry.data.dialog.action.DialogAction;
+import io.papermc.paper.registry.data.dialog.input.DialogInput;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickCallback;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
@@ -11,6 +20,10 @@ import org.bukkit.entity.Player;
 import org.lovelycheck.core.LovelyCheckRegistry;
 import org.lovelycheck.core.config.ConfigsManager;
 import org.lovelycheck.spigot.LovelyCheckPlugin;
+import org.lovelycheck.spigot.checks.HackDefinition;
+import org.lovelycheck.spigot.checks.commands.ChecksCommand;
+import org.lovelycheck.spigot.checks.commands.AlertsCommand;
+import org.lovelycheck.spigot.checks.managers.ConfigManager;
 import org.lovelycheck.spigot.commands.BukkitCommandFallback;
 
 import java.util.Arrays;
@@ -22,7 +35,7 @@ import java.util.stream.Collectors;
 public final class LovelyCheckerCommand implements CommandExecutor, TabCompleter {
 
     private static final MiniMessage MM = MiniMessage.miniMessage();
-    private static final List<String> SUBCOMMANDS = List.of("scan", "reload", "alerts", "check", "list", "inv", "lang", "checklang");
+    private static final List<String> SUBCOMMANDS = List.of("scan", "reload", "alerts", "check", "list", "inv", "lang", "checklang", "edit");
 
     private final LovelyCheckPlugin plugin;
     private final ChecksCommand scanCommand;
@@ -52,6 +65,7 @@ public final class LovelyCheckerCommand implements CommandExecutor, TabCompleter
             case "alerts", "alert" -> alertsCommand.onCommand(sender, command, label, tail);
             case "lang", "checklang" -> checkLang(sender, tail);
             case "check", "list", "inv" -> connectionCommand.onCommand(sender, command, label, args);
+            case "edit" -> openEditDialog(sender);
             case "help", "?" -> {
                 sendHelp(sender);
                 yield true;
@@ -106,6 +120,98 @@ public final class LovelyCheckerCommand implements CommandExecutor, TabCompleter
         return true;
     }
 
+    private boolean openEditDialog(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(MM.deserialize(plugin.getConfigManager().getPrefix() + "<red>Only players can use this command."));
+            return true;
+        }
+
+        if (!hasAnyPermission(player, "lovelycheck.edit", "lovelychecker.edit", "lovelycheck.command.edit",
+                "lovelychecker.command.edit")) {
+            player.sendMessage(plugin.getMessageManager().get("no-permission"));
+            return true;
+        }
+
+        ConfigManager configManager = plugin.getConfigManager();
+        List<DialogInput> inputs = new java.util.ArrayList<>();
+
+        inputs.add(DialogInput.bool("join_check", Component.text("Auto Check on Join"))
+                .initial(configManager.isJoinCheckEnabled())
+                .build());
+        inputs.add(DialogInput.bool("punishment", Component.text("Enable Punishments"))
+                .initial(configManager.isPunishmentEnabled())
+                .build());
+        inputs.add(DialogInput.bool("silent", Component.text("Silent Checks"))
+                .initial(configManager.isSilentCheck())
+                .build());
+        inputs.add(DialogInput.bool("detect_flag", Component.text("Anticheat Flag Checks"))
+                .initial(configManager.isDetectFlagEnabled())
+                .build());
+        inputs.add(DialogInput.bool("double_confirm", Component.text("Double Confirmation"))
+                .initial(configManager.isConfirmationEnabled())
+                .build());
+
+        Map<String, HackDefinition> registeredHacks = configManager.getHacks();
+        List<HackDefinition> defaultHacks = configManager.getDefaultLovelyCheck();
+        for (HackDefinition hack : registeredHacks.values()) {
+            boolean active = defaultHacks.contains(hack);
+            inputs.add(DialogInput.bool("hack_" + hack.getId().replace('-', '_'), Component.text("Check " + hack.getDisplayName()))
+                    .initial(active)
+                    .build());
+        }
+
+        Dialog dialog = Dialog.create(builder -> builder.empty()
+                .base(DialogBase.builder(Component.text("LovelyCheck Configuration", NamedTextColor.GOLD))
+                        .inputs(inputs)
+                        .canCloseWithEscape(true)
+                        .build())
+                .type(DialogType.confirmation(
+                        ActionButton.builder(Component.text("Save", NamedTextColor.GREEN))
+                                .tooltip(Component.text("Save configuration changes"))
+                                .action(DialogAction.customClick((view, audience) -> {
+                                    if (audience instanceof Player p) {
+                                        boolean joinCheck = view.getBoolean("join_check") != null && view.getBoolean("join_check");
+                                        boolean punishment = view.getBoolean("punishment") != null && view.getBoolean("punishment");
+                                        boolean silent = view.getBoolean("silent") != null && view.getBoolean("silent");
+                                        boolean detectFlag = view.getBoolean("detect_flag") != null && view.getBoolean("detect_flag");
+                                        boolean doubleConfirm = view.getBoolean("double_confirm") != null && view.getBoolean("double_confirm");
+
+                                        plugin.getConfig().set("auto-check-on-join.enabled", joinCheck);
+                                        plugin.getConfig().set("punishment.enabled", punishment);
+                                        plugin.getConfig().set("silent-check", silent);
+                                        plugin.getConfig().set("detect-flag.enabled", detectFlag);
+                                        plugin.getConfig().set("double-confirmation.enabled", doubleConfirm);
+
+                                        List<String> enabledHacksList = new java.util.ArrayList<>();
+                                        for (String id : registeredHacks.keySet()) {
+                                            Boolean checked = view.getBoolean("hack_" + id.replace('-', '_'));
+                                            if (checked != null && checked) {
+                                                enabledHacksList.add(id);
+                                            }
+                                        }
+
+                                        plugin.getConfig().set("default-check-hacks", enabledHacksList);
+                                        plugin.getConfig().set("auto-check-on-join.hacks", enabledHacksList);
+                                        plugin.getConfig().set("detect-flag.hacks", enabledHacksList);
+
+                                        plugin.saveConfig();
+                                        plugin.getConfigManager().reload();
+
+                                        p.closeDialog();
+                                        p.sendMessage(MM.deserialize(plugin.getConfigManager().getPrefix() + "<green>Configuration updated successfully."));
+                                    }
+                                }, ClickCallback.Options.builder().uses(1).build()))
+                                .build(),
+                        ActionButton.builder(Component.text("Cancel", NamedTextColor.RED))
+                                .tooltip(Component.text("Cancel changes"))
+                                .build()
+                ))
+        );
+
+        player.showDialog(dialog);
+        return true;
+    }
+
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(message("""
                 <prefix><white>/lovelychecker scan <player> [hack1,hack2,...]
@@ -114,7 +220,8 @@ public final class LovelyCheckerCommand implements CommandExecutor, TabCompleter
                 <prefix><white>/lovelychecker lang <player>
                 <prefix><white>/lovelychecker check <player>
                 <prefix><white>/lovelychecker list
-                <prefix><white>/lovelychecker inv"""));
+                <prefix><white>/lovelychecker inv
+                <prefix><white>/lovelychecker edit"""));
     }
 
     private Component message(String raw) {
@@ -170,6 +277,8 @@ public final class LovelyCheckerCommand implements CommandExecutor, TabCompleter
                     "lovelychecker.command.inv", "lovelychecker.inv");
             case "lang", "checklang" -> hasAnyPermission(sender, "lovelycheck.checklang", "lovelychecker.checklang",
                     "lovelycheck.command.checklang", "lovelychecker.command.checklang");
+            case "edit" -> sender instanceof Player && hasAnyPermission(sender, "lovelycheck.edit", "lovelychecker.edit",
+                    "lovelycheck.command.edit", "lovelychecker.command.edit");
             default -> false;
         };
     }

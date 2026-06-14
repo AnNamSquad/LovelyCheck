@@ -57,7 +57,7 @@ public class LovelyCheckPlayerListeners implements Listener {
             if (!player.isOnline()) {
                 return;
             }
-            for (PendingPayloads.PendingPayload payload : PendingPayloads.drainFor(player)) {
+            for (PendingPayloads.PendingPayload payload : PendingPayloads.drainFor(player.getUniqueId())) {
                 PayloadProcessor.process(player, payload.getChannel(), payload.getMessage());
             }
             handleBedrockDetection(player);
@@ -67,7 +67,7 @@ public class LovelyCheckPlayerListeners implements Listener {
     @EventHandler
     public void onPlayerLeave(PlayerQuitEvent event) {
         LovelyCheckRegistry.removePlayer(event.getPlayer().getUniqueId());
-        PendingPayloads.clearFor(event.getPlayer());
+        PendingPayloads.clearFor(event.getPlayer().getUniqueId());
     }
 
     @EventHandler

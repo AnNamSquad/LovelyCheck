@@ -1,3 +1,12 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.guardsquare:proguard-gradle:7.9.1")
+    }
+}
+
 import java.text.SimpleDateFormat
 import java.util.Date
 
@@ -79,14 +88,14 @@ dependencies {
     compileOnly("org.geysermc.floodgate:api:2.2.3-SNAPSHOT")
 
     // Dependencies to be shaded into the final jar
-    implementation("net.kyori:adventure-text-minimessage:4.14.0")
+    compileOnly("net.kyori:adventure-text-minimessage:4.14.0")
     implementation("io.github.xtomlj:xtomlj:1.1.0")
     implementation("org.antlr:antlr4-runtime:4.7.2")
     implementation("com.lunarclient:apollo-protos:0.0.6")
     implementation("org.bstats:bstats-bukkit:3.1.0")
     implementation("md.thomas.hopper:hopper-bukkit:1.4.2")
-    implementation("org.xerial:sqlite-jdbc:3.45.3.0")
-    implementation("org.yaml:snakeyaml:1.30")
+    compileOnly("org.xerial:sqlite-jdbc:3.45.3.0")
+    compileOnly("org.yaml:snakeyaml:1.30")
 }
 
 tasks.jar {
@@ -111,7 +120,23 @@ tasks.shadowJar {
             "paperweight-mappings-namespace" to "mojang"
         )
     }
-    archiveFileName.set("lovelycheck-${pluginVersion}.jar")
+    archiveFileName.set("lovelycheck-${pluginVersion}-unobfuscated.jar")
+}
+
+val proguard = tasks.register<proguard.gradle.ProGuardTask>("proguard") {
+    dependsOn(tasks.shadowJar)
+    injars(tasks.shadowJar.flatMap { it.archiveFile })
+    outjars(layout.buildDirectory.file("libs/lovelycheck-${pluginVersion}.jar"))
+
+    configuration("proguard-rules.pro")
+
+    val javaHome = System.getProperty("java.home")
+    libraryjars("$javaHome/jmods/java.base.jmod")
+
+    // Add compileClasspath to libraryjars
+    configurations.compileClasspath.get().files.forEach {
+        libraryjars(it)
+    }
 }
 
 tasks.compileJava {
@@ -119,7 +144,7 @@ tasks.compileJava {
 }
 
 tasks.build {
-    dependsOn(tasks.shadowJar)
+    dependsOn(proguard)
 }
 
 val copyJar: Boolean = project.findProperty("copyJar")?.toString()?.toBoolean() ?: false
@@ -137,7 +162,7 @@ if (copyJar) {
     }
 
     copyJarTask {
-        dependsOn(tasks.shadowJar)
+        dependsOn(proguard)
     }
 
     tasks.named("build") {

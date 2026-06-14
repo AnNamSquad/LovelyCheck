@@ -1,85 +1,59 @@
 package org.lovelycheck.spigot.listeners;
 
-import org.bukkit.entity.Player;
-
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class PendingPayloads {
 
     private static final long MAX_AGE_MS = 30_000L;
     private static final int MAX_PAYLOADS_PER_PLAYER = 256;
-    private static final Map<Player, PendingQueue> PENDING = new ConcurrentHashMap<>();
+    private static final Map<UUID, PendingQueue> PENDING = new ConcurrentHashMap<>();
 
     private PendingPayloads() {
     }
 
-    public static void queue(Player temporaryPlayer, String channel, String message) {
-        if (temporaryPlayer == null) {
+    public static void queue(UUID uuid, String channel, String message) {
+        if (uuid == null) {
             return;
         }
-        pruneExpired();
-        PendingQueue queue = PENDING.computeIfAbsent(temporaryPlayer, key -> new PendingQueue());
+        PendingQueue queue = PENDING.computeIfAbsent(uuid, key -> new PendingQueue());
         queue.add(channel, message);
     }
 
-    public static List<PendingPayload> drainFor(Player player) {
-        if (player == null) {
+    public static List<PendingPayload> drainFor(UUID uuid) {
+        if (uuid == null) {
             return List.of();
         }
-        pruneExpired();
-        List<PendingPayload> drained = new ArrayList<>();
-        for (Map.Entry<Player, PendingQueue> entry : PENDING.entrySet()) {
-            Player temporaryPlayer = entry.getKey();
-            Player resolved = resolvePlayer(temporaryPlayer);
-            if (resolved == null) {
-                continue;
-            }
-            if (resolved.equals(player)) {
-                PendingQueue removed = PENDING.remove(temporaryPlayer);
-                if (removed != null) {
-                    drained.addAll(removed.drain());
-                }
-            }
+        PendingQueue removed = PENDING.remove(uuid);
+        if (removed != null) {
+            return removed.drain();
         }
-        return drained;
+        return List.of();
     }
 
-    public static void clearFor(Player player) {
-        if (player == null) {
+    public static void clearFor(UUID uuid) {
+        if (uuid == null) {
             return;
         }
-        for (Map.Entry<Player, PendingQueue> entry : PENDING.entrySet()) {
-            Player temporaryPlayer = entry.getKey();
-            Player resolved = resolvePlayer(temporaryPlayer);
-            if (resolved == null) {
-                continue;
-            }
-            if (resolved.equals(player)) {
-                PENDING.remove(temporaryPlayer, entry.getValue());
-            }
-        }
+        PENDING.remove(uuid);
     }
 
-    private static Player resolvePlayer(Player temporaryPlayer) {
-        try {
-            return temporaryPlayer.getPlayer();
-        } catch (UnsupportedOperationException ex) {
-            return null;
-        }
-    }
-
-    private static void pruneExpired() {
+    public static void pruneExpired() {
         long now = System.currentTimeMillis();
-        for (Map.Entry<Player, PendingQueue> entry : PENDING.entrySet()) {
+        for (Map.Entry<UUID, PendingQueue> entry : PENDING.entrySet()) {
             if (entry.getValue().isExpired(now)) {
                 PENDING.remove(entry.getKey(), entry.getValue());
             }
         }
+    }
+
+    public static void startPruningTask(org.bukkit.plugin.Plugin plugin) {
+        org.bukkit.Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, PendingPayloads::pruneExpired, 600L, 600L);
     }
 
     public static final class PendingPayload {
@@ -129,8 +103,6 @@ public final class PendingPayloads {
         }
 
         private synchronized boolean isExpired(long now) {
-            // Only expire if time has passed AND queue is empty or stale
-            // A newly created empty queue is not expired until MAX_AGE_MS has passed
             return now - lastUpdated > MAX_AGE_MS;
         }
     }
