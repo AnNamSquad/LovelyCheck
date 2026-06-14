@@ -69,7 +69,10 @@ public class JoinListener implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        plugin.getClientDataManager().remove(event.getPlayer().getUniqueId());
+        UUID uuid = event.getPlayer().getUniqueId();
+        alreadyHackChecked.remove(uuid);
+        plugin.getClientDataManager().remove(uuid);
+        plugin.getCheckManager().removePlayer(uuid);
     }
 
     private ClientType detectClientType(Set<String> channels) {

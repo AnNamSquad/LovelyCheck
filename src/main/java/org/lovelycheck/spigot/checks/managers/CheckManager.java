@@ -26,25 +26,25 @@ public class CheckManager {
     private static final String TRANSLATION_MASKING_RESULT_ID = "translation-masking-bypass";
 
     private static final Map<String, String> LOCALE_MAP = Map.ofEntries(
-            Map.entry("space", "en"),
-            Map.entry("espace", "fr"),
-            Map.entry("leertaste", "de"),
-            Map.entry("espacio", "es"),
-            Map.entry("espaço", "pt"),
-            Map.entry("spazio", "it"),
-            Map.entry("пробел", "ru"),
-            Map.entry("spacja", "pl"),
-            Map.entry("boşluk", "tr"),
-            Map.entry("ara tuşu", "tr"),
-            Map.entry("dấu cách", "vi"),
-            Map.entry("スペース", "ja"),
-            Map.entry("스페이스", "ko"),
-            Map.entry("空格", "zh"),
-            Map.entry("mezerník", "cs"),
-            Map.entry("mellanslag", "sv"),
-            Map.entry("mellomrom", "no"),
-            Map.entry("spatie", "nl"),
-            Map.entry("mezera", "cs"));
+            Map.entry("space", "en (English)"),
+            Map.entry("espace", "fr (French)"),
+            Map.entry("leertaste", "de (German)"),
+            Map.entry("espacio", "es (Spanish)"),
+            Map.entry("espaço", "pt (Portuguese)"),
+            Map.entry("spazio", "it (Italian)"),
+            Map.entry("пробел", "ru (Russian)"),
+            Map.entry("spacja", "pl (Polish)"),
+            Map.entry("boşluk", "tr (Turkish)"),
+            Map.entry("ara tuşu", "tr (Turkish)"),
+            Map.entry("dấu cách", "vi (Vietnamese)"),
+            Map.entry("スペース", "ja (Japanese)"),
+            Map.entry("스페이스", "ko (Korean)"),
+            Map.entry("空格", "zh (Chinese)"),
+            Map.entry("mezerník", "cs (Czech)"),
+            Map.entry("mellanslag", "sv (Swedish)"),
+            Map.entry("mellomrom", "no (Norwegian)"),
+            Map.entry("spatie", "nl (Dutch)"),
+            Map.entry("mezera", "cs (Czech)"));
 
     private final LovelyCheckPlugin plugin;
     private final Map<UUID, CheckPlayerData> activeChecks = new ConcurrentHashMap<>();
@@ -65,6 +65,11 @@ public class CheckManager {
 
     public boolean hasLatestDetectedHacks(UUID uuid) {
         return !getLatestDetectedHacks(uuid).isEmpty();
+    }
+
+    public void removePlayer(UUID uuid) {
+        latestDetectedHacks.remove(uuid);
+        activeChecks.remove(uuid);
     }
 
     public boolean canAutoCheck(UUID uuid) {
@@ -176,8 +181,9 @@ public class CheckManager {
         int firstBatchSize = Math.min(getMaxHacksForBatch(0), hacks.size());
         batches.add(new ArrayList<>(hacks.subList(0, firstBatchSize)));
 
-        for (int i = firstBatchSize; i < hacks.size(); i += getMaxHacksForBatch(1)) {
-            batches.add(new ArrayList<>(hacks.subList(i, Math.min(i + getMaxHacksForBatch(1), hacks.size()))));
+        int secondBatchSize = getMaxHacksForBatch(1);
+        for (int i = firstBatchSize; i < hacks.size(); i += secondBatchSize) {
+            batches.add(new ArrayList<>(hacks.subList(i, Math.min(i + secondBatchSize, hacks.size()))));
         }
         return batches;
     }
@@ -317,27 +323,7 @@ public class CheckManager {
 
         for (Map.Entry<String, String> entry : LOCALE_MAP.entrySet()) {
             if (clean.contains(entry.getKey())) {
-                String code = entry.getValue();
-                return switch (code) {
-                    case "en" -> "en (English)";
-                    case "fr" -> "fr (French)";
-                    case "de" -> "de (German)";
-                    case "es" -> "es (Spanish)";
-                    case "pt" -> "pt (Portuguese)";
-                    case "it" -> "it (Italian)";
-                    case "ru" -> "ru (Russian)";
-                    case "pl" -> "pl (Polish)";
-                    case "tr" -> "tr (Turkish)";
-                    case "vi" -> "vi (Vietnamese)";
-                    case "ja" -> "ja (Japanese)";
-                    case "ko" -> "ko (Korean)";
-                    case "zh" -> "zh (Chinese)";
-                    case "cs" -> "cs (Czech)";
-                    case "sv" -> "sv (Swedish)";
-                    case "no" -> "no (Norwegian)";
-                    case "nl" -> "nl (Dutch)";
-                    default -> code;
-                };
+                return entry.getValue();
             }
         }
         return "Unknown (" + line0 + ")";
@@ -719,40 +705,50 @@ public class CheckManager {
             sendResultLine(data, Component.text("No configured hacks were detected.", NamedTextColor.GREEN));
         }
 
-        long scanId = plugin.getDatabaseManager().saveScan(
-                "hack", targetName, targetUUID, checkerName, data.getReason(), punishable);
-        for (HackDefinition hack : allHacks) {
-            HackResult r = data.getResults().getOrDefault(hack.getId(), HackResult.SKIPPED);
-            HackResult storedResult = data.isTranslationMaskedHackId(hack.getId())
-                    ? HackResult.PROTECTED
-                    : r;
-            plugin.getDatabaseManager().saveHackResult(scanId, hack.getId(),
-                    hack.getDisplayName(), storedResult.name());
-        }
-        if (maskingDetected) {
-            plugin.getDatabaseManager().saveHackResult(scanId, TRANSLATION_MASKING_RESULT_ID,
-                    maskingDisplayName, HackResult.DETECTED.name());
-        }
-
         if (cfg.isDiscordEnabled() && punishable) {
             WebhookUtil.sendDetectionReport(cfg.getWebhookUrl(), cfg.getEmbedColor(),
                     targetName, checkerName, data.getReason(), violations);
         }
 
         final String tn = targetName;
-        if (punishable && cfg.isPunishmentEnabled()) {
-            executePunishment(data, targetName, targetUUID, violations, cfg);
-        } else if (anyDetected && cfg.isCommandIfPositiveEnabled()) {
-            String cmd = cfg.getPositiveCommand().replace("%player%", tn);
-            Bukkit.getScheduler().runTask(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd));
-        } else if (anyProtected && !anyDetected && cfg.isCommandIfProtectedEnabled()) {
-            String cmd = cfg.getProtectedCommand().replace("%player%", tn);
-            Bukkit.getScheduler().runTask(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd));
-        }
-        if (allClean && cfg.isCommandIfCleanEnabled()) {
-            String cmd = cfg.getCleanCommand().replace("%player%", tn);
-            Bukkit.getScheduler().runTask(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd));
-        }
+        final String tUUID = targetUUID;
+        final String cName = checkerName;
+        final boolean isPunishable = punishable;
+
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            long scanId = plugin.getDatabaseManager().saveScan(
+                    "hack", tn, tUUID, cName, data.getReason(), isPunishable);
+            for (HackDefinition hack : allHacks) {
+                HackResult r = data.getResults().getOrDefault(hack.getId(), HackResult.SKIPPED);
+                HackResult storedResult = data.isTranslationMaskedHackId(hack.getId())
+                        ? HackResult.PROTECTED
+                        : r;
+                plugin.getDatabaseManager().saveHackResult(scanId, hack.getId(),
+                        hack.getDisplayName(), storedResult.name());
+            }
+            if (maskingDetected) {
+                plugin.getDatabaseManager().saveHackResult(scanId, TRANSLATION_MASKING_RESULT_ID,
+                        maskingDisplayName, HackResult.DETECTED.name());
+            }
+
+            if (isPunishable && cfg.isPunishmentEnabled()) {
+                executePunishment(data, tn, tUUID, violations, cfg);
+            } else {
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (anyDetected && cfg.isCommandIfPositiveEnabled()) {
+                        String cmd = cfg.getPositiveCommand().replace("%player%", tn);
+                        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
+                    } else if (anyProtected && !anyDetected && cfg.isCommandIfProtectedEnabled()) {
+                        String cmd = cfg.getProtectedCommand().replace("%player%", tn);
+                        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
+                    }
+                    if (allClean && cfg.isCommandIfCleanEnabled()) {
+                        String cmd = cfg.getCleanCommand().replace("%player%", tn);
+                        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
+                    }
+                });
+            }
+        });
     }
 
     private void notifyInitiator(CheckPlayerData data, Component msg) {
@@ -807,21 +803,22 @@ public class CheckManager {
 
         plugin.getDatabaseManager().savePunishment(targetName, targetUUID, offense, duration, reason);
 
-        if (command.isBlank()) {
-            plugin.getLogger().warning("[lovelycheck] Punishment command is blank; saved offense #"
-                    + offense + " for " + targetName + " but did not dispatch a punishment command.");
-        } else {
-            Bukkit.getScheduler().runTask(plugin,
-                    () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command));
-        }
-
         String action = kickOnly ? "kick" : duration;
-        sendResultLine(data, Component.text("Punishment: offense #", NamedTextColor.YELLOW)
-                .append(Component.text(String.valueOf(offense), NamedTextColor.WHITE))
-                .append(Component.text(" for ", NamedTextColor.YELLOW))
-                .append(Component.text(action, NamedTextColor.WHITE))
-                .append(Component.text(" - ", NamedTextColor.GRAY))
-                .append(Component.text(compactNames(violations), NamedTextColor.RED)));
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (command.isBlank()) {
+                plugin.getLogger().warning("[lovelycheck] Punishment command is blank; saved offense #"
+                        + offense + " for " + targetName + " but did not dispatch a punishment command.");
+            } else {
+                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+            }
+
+            sendResultLine(data, Component.text("Punishment: offense #", NamedTextColor.YELLOW)
+                    .append(Component.text(String.valueOf(offense), NamedTextColor.WHITE))
+                    .append(Component.text(" for ", NamedTextColor.YELLOW))
+                    .append(Component.text(action, NamedTextColor.WHITE))
+                    .append(Component.text(" - ", NamedTextColor.GRAY))
+                    .append(Component.text(compactNames(violations), NamedTextColor.RED)));
+        });
     }
 
     private String getPunishmentDuration(int offense, List<String> durations) {

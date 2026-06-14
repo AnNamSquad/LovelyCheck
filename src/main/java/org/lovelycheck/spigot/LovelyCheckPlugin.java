@@ -20,9 +20,9 @@ import org.lovelycheck.spigot.protocol.PacketEventsSignCheckPacketBridge;
 import org.lovelycheck.spigot.protocol.SignCheckPacketBridge;
 
 import java.util.List;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class LovelyCheckPlugin extends LovelyCheckConnectionPlugin {
 
@@ -34,7 +34,7 @@ public class LovelyCheckPlugin extends LovelyCheckConnectionPlugin {
     private CheckManager checkManager;
     private ClientDataManager clientDataManager;
     private SignCheckPacketBridge signCheckPacketBridge;
-    private final Set<UUID> alertsDisabled = new HashSet<>();
+    private final Set<UUID> alertsDisabled = ConcurrentHashMap.newKeySet();
 
     public LovelyCheckPlugin() throws NoSuchFieldException, IllegalAccessException {
         super();

@@ -12,10 +12,14 @@ import org.bukkit.event.Listener;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class AntiCheatListener implements Listener {
 
     private final LovelyCheckPlugin plugin;
+    private static final Map<String, Optional<Method>> METHOD_CACHE = new ConcurrentHashMap<>();
+    private static final Map<Class<?>, Optional<Method>> PLAYER_METHOD_CACHE = new ConcurrentHashMap<>();
 
     private static final String[] GRIM_CLASSES = {
             "ac.grim.grimac.api.events.FlagEvent",
@@ -96,17 +100,24 @@ public class AntiCheatListener implements Listener {
                 if (p != null) return p;
             }
 
-            for (Method m : raw.getClass().getMethods()) {
-                if (m.getParameterCount() == 0 && m.getReturnType() == Player.class) {
-                    try {
-                        Object result = m.invoke(raw);
-                        if (result instanceof Player p) return p;
-                    } catch (Exception ignored) {}
+            Class<?> rawClass = raw.getClass();
+            Optional<Method> playerMethodOpt = PLAYER_METHOD_CACHE.computeIfAbsent(rawClass, clazz -> {
+                for (Method m : clazz.getMethods()) {
+                    if (m.getParameterCount() == 0 && m.getReturnType() == Player.class) {
+                        return Optional.of(m);
+                    }
                 }
+                return Optional.empty();
+            });
+            if (playerMethodOpt.isPresent()) {
+                try {
+                    Object result = playerMethodOpt.get().invoke(raw);
+                    if (result instanceof Player p) return p;
+                } catch (Exception ignored) {}
             }
         }
 
-        for (String methodName : new String[]{"getUser", "getViolator", "getViolation", "getTarget"}) {
+            for (String methodName : new String[]{"getUser", "getViolator", "getViolation", "getTarget"}) {
             Object obj = invokeNoArgs(event, methodName);
             if (obj instanceof Player p) return p;
             if (obj != null) {
@@ -126,8 +137,19 @@ public class AntiCheatListener implements Listener {
     }
 
     private Object invokeNoArgs(Object target, String methodName) {
+        if (target == null) return null;
+        Class<?> clazz = target.getClass();
+        String key = clazz.getName() + "#" + methodName;
         try {
-            return target.getClass().getMethod(methodName).invoke(target);
+            Optional<Method> opt = METHOD_CACHE.computeIfAbsent(key, k -> {
+                try {
+                    return Optional.of(clazz.getMethod(methodName));
+                } catch (NoSuchMethodException e) {
+                    return Optional.empty();
+                }
+            });
+            if (opt.isEmpty()) return null;
+            return opt.get().invoke(target);
         } catch (Exception ignored) {
             return null;
         }

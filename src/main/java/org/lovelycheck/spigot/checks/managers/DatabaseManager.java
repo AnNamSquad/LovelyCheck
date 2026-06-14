@@ -66,6 +66,7 @@ public class DatabaseManager {
                     reason TEXT NOT NULL,
                     timestamp INTEGER NOT NULL
                 )""");
+            s.execute("CREATE INDEX IF NOT EXISTS idx_punishments_uuid ON punishments(target_uuid)");
         } catch (SQLException e) {
             plugin.getLogger().severe("Failed to create tables: " + e.getMessage());
         }
