@@ -760,6 +760,7 @@ public class CheckManager {
             return;
         boolean gets = (ini.hasPermission("lovelycheck.alerts") || ini.hasPermission("lovelychecker.alerts"))
                 && plugin.hasAlertsEnabled(ini.getUniqueId());
+        // Direct message the initiator ONLY if they won't already receive the message via the broadcast
         if (!gets)
             ini.sendMessage(msg);
     }
@@ -790,19 +791,26 @@ public class CheckManager {
 
     private void executePunishment(CheckPlayerData data, String targetName, String targetUUID,
             List<String> violations, ConfigManager cfg) {
-        int offense = plugin.getDatabaseManager().getNextPunishmentOffense(targetUUID);
+        String detections = String.join(", ", violations);
+
+        int offense = plugin.getDatabaseManager().getNextOffenseAndSavePunishment(targetName, targetUUID, (off, uuid) -> {
+            boolean kickOnly = cfg.isPunishmentKickFirst() && off == 1;
+            int banOffense = cfg.isPunishmentKickFirst() ? off - 1 : off;
+            String dur = kickOnly ? "kick" : getPunishmentDuration(banOffense, cfg.getPunishmentDurations());
+            String reas = applyPunishmentPlaceholders(cfg.getPunishmentReason(),
+                    targetName, targetUUID, off, dur, detections);
+            return new DatabaseManager.PunishmentData(dur, reas);
+        });
+
         boolean kickOnly = cfg.isPunishmentKickFirst() && offense == 1;
         int banOffense = cfg.isPunishmentKickFirst() ? offense - 1 : offense;
         String duration = kickOnly ? "kick" : getPunishmentDuration(banOffense, cfg.getPunishmentDurations());
-        String detections = String.join(", ", violations);
         String reason = applyPunishmentPlaceholders(cfg.getPunishmentReason(),
                 targetName, targetUUID, offense, duration, detections);
         String commandTemplate = kickOnly ? cfg.getPunishmentKickCommand() : cfg.getPunishmentCommand();
         String command = applyPunishmentPlaceholders(commandTemplate,
                 targetName, targetUUID, offense, duration, detections)
                 .replace("%reason%", reason);
-
-        plugin.getDatabaseManager().savePunishment(targetName, targetUUID, offense, duration, reason);
 
         String action = kickOnly ? "kick" : duration;
         Bukkit.getScheduler().runTask(plugin, () -> {

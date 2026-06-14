@@ -81,7 +81,7 @@ public class DatabaseManager {
         }
     }
 
-    public synchronized long saveScan(String type, String targetName, String targetUUID,
+    public long saveScan(String type, String targetName, String targetUUID,
                                       String checkerName, String reason, boolean hasDetected) {
         if (connection == null) return -1;
         String sql = "INSERT INTO scans (type,target_name,target_uuid,checker_name,reason,timestamp,has_detected) VALUES (?,?,?,?,?,?,?)";
@@ -103,7 +103,7 @@ public class DatabaseManager {
         return -1;
     }
 
-    public synchronized void saveHackResult(long scanId, String hackId, String hackName, String result) {
+    public void saveHackResult(long scanId, String hackId, String hackName, String result) {
         if (connection == null) return;
         try (PreparedStatement ps = connection.prepareStatement(
                 "INSERT INTO hack_results (scan_id,hack_id,hack_name,result) VALUES (?,?,?,?)")) {
@@ -117,42 +117,10 @@ public class DatabaseManager {
         }
     }
 
-    public synchronized int getNextPunishmentOffense(String targetUUID) {
-        if (connection == null) return 1;
-        try (PreparedStatement ps = connection.prepareStatement(
-                "SELECT COUNT(*) FROM punishments WHERE target_uuid = ?")) {
-            ps.setString(1, targetUUID);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt(1) + 1;
-                }
-            }
-        } catch (SQLException e) {
-            plugin.getLogger().warning("Failed to read punishment offense count: " + e.getMessage());
-        }
-        return 1;
-    }
+    public record PunishmentData(String duration, String reason) {}
 
-    public synchronized void savePunishment(String targetName, String targetUUID,
-                                            int offense, String duration, String reason) {
-        if (connection == null) return;
-        String sql = "INSERT INTO punishments (target_name,target_uuid,offense,duration,reason,timestamp) "
-                + "VALUES (?,?,?,?,?,?)";
-        try (PreparedStatement ps = connection.prepareStatement(sql)) {
-            ps.setString(1, targetName);
-            ps.setString(2, targetUUID);
-            ps.setInt(3, offense);
-            ps.setString(4, duration);
-            ps.setString(5, reason);
-            ps.setLong(6, System.currentTimeMillis());
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            plugin.getLogger().warning("Failed to save punishment: " + e.getMessage());
-        }
-    }
-
-    public synchronized int getNextOffenseAndSavePunishment(String targetName, String targetUUID,
-                                                            String duration, String reason) {
+    public int getNextOffenseAndSavePunishment(String targetName, String targetUUID,
+                                                            java.util.function.BiFunction<Integer, String, PunishmentData> detailsProvider) {
         if (connection == null) return 1;
         try {
             connection.setAutoCommit(false);
@@ -166,6 +134,10 @@ public class DatabaseManager {
                     }
                 }
             }
+            PunishmentData details = detailsProvider.apply(offense, targetUUID);
+            String duration = details.duration();
+            String reason = details.reason();
+
             String sql = "INSERT INTO punishments (target_name,target_uuid,offense,duration,reason,timestamp) "
                     + "VALUES (?,?,?,?,?,?)";
             try (PreparedStatement ps = connection.prepareStatement(sql)) {
