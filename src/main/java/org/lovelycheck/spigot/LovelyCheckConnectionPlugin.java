@@ -10,25 +10,18 @@ import org.lovelycheck.core.config.Message;
 import org.lovelycheck.spigot.hopper.LovelyCheckHopper;
 import org.lovelycheck.spigot.listeners.LovelyCheckPlayerListeners;
 import org.lovelycheck.spigot.listeners.LunarApolloListener;
-import org.lovelycheck.spigot.probing.SignTranslationProber;
 import org.lovelycheck.spigot.protocol.PacketEventsIntegration;
-import org.lovelycheck.spigot.protocol.ProtocolLibIntegration;
 import org.lovelycheck.spigot.utils.logs.Logs;
 import org.jetbrains.annotations.Nullable;
 
 public class LovelyCheckConnectionPlugin extends JavaPlugin {
 
     private static LovelyCheckConnectionPlugin instance;
-    private boolean protocolLibAvailable = false;
     private boolean packetEventsAvailable = false;
-    @Nullable
-    private ProtocolLibIntegration protocolLibIntegration;
     @Nullable
     private PacketEventsIntegration packetEventsIntegration;
     @Nullable
     private LunarApolloListener lunarApolloListener;
-    @Nullable
-    private SignTranslationProber signTranslationProber;
 
     public LovelyCheckConnectionPlugin() throws NoSuchFieldException, IllegalAccessException {
         instance = this;
@@ -60,9 +53,6 @@ public class LovelyCheckConnectionPlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        // Check if ProtocolLib is available
-        protocolLibAvailable = Bukkit.getPluginManager().getPlugin("ProtocolLib") != null;
-
         // Re-check PacketEvents availability during onEnable() if not found during onLoad()
         // Paper's new plugin system may not have loaded packetevents' classes during our onLoad()
         if (!packetEventsAvailable) {
@@ -79,21 +69,16 @@ public class LovelyCheckConnectionPlugin extends JavaPlugin {
             }
         }
 
-        // Determine which packet library to use
-        // Prefer ProtocolLib on standard Paper/Spigot, use PacketEvents on hybrid servers like Arclight
-        boolean useProtocolLib = protocolLibAvailable && !isHybridServer();
-        boolean usePacketEvents = packetEventsAvailable && !useProtocolLib;
-
-        if (!useProtocolLib && !usePacketEvents) {
+        if (!packetEventsAvailable) {
             if (LovelyCheckHopper.requiresRestart()) {
-                getLogger().warning("A packet library was downloaded but requires a server restart to load.");
+                getLogger().warning("PacketEvents was downloaded but requires a server restart to load.");
                 getLogger().warning("Please restart your server to enable lovelycheck functionality.");
             } else if (!LovelyCheckHopper.isEnabled()) {
-                getLogger().warning("No packet library (ProtocolLib or PacketEvents) is installed and auto-download is disabled.");
+                getLogger().warning("PacketEvents is not installed and auto-download is disabled.");
                 getLogger().warning("Please install one manually or enable auto_download_dependencies in lovelycheck.toml");
             } else {
-                getLogger().severe("No packet library available! lovelycheck will have limited functionality.");
-                getLogger().severe("Please install ProtocolLib or PacketEvents manually.");
+                getLogger().severe("PacketEvents is not available! lovelycheck packet detection will be disabled.");
+                getLogger().severe("Please install PacketEvents manually.");
             }
         }
 
@@ -103,25 +88,8 @@ public class LovelyCheckConnectionPlugin extends JavaPlugin {
         BedrockDetector.initialize(getLogger());
         Bukkit.getPluginManager().registerEvents(new LovelyCheckPlayerListeners(), this);
 
-        if (useProtocolLib) {
-            // Load ProtocolLib integration in a separate class to avoid NoClassDefFoundError
-            // when ProtocolLib is not installed
-            getLogger().info("Using ProtocolLib for packet interception");
-            try {
-                protocolLibIntegration = new ProtocolLibIntegration(this);
-                protocolLibIntegration.register();
-            } catch (Throwable e) {
-                getLogger().severe("Failed to initialize ProtocolLib: " + e.getMessage());
-                // Try to fall back to PacketEvents
-                if (packetEventsAvailable) {
-                    getLogger().info("Falling back to PacketEvents...");
-                    usePacketEvents = true;
-                }
-            }
-        }
-
-        if (usePacketEvents && packetEventsIntegration != null) {
-            getLogger().info("Using PacketEvents for packet interception (better for hybrid servers like Arclight)");
+        if (packetEventsAvailable && packetEventsIntegration != null) {
+            getLogger().info("Using PacketEvents for packet interception");
             try {
                 packetEventsIntegration.register();
             } catch (Throwable e) {
@@ -131,31 +99,6 @@ public class LovelyCheckConnectionPlugin extends JavaPlugin {
 
         lunarApolloListener = new LunarApolloListener(this);
 
-        // Register sign translation probing (active mod detection via packets)
-        // Only register when PacketEvents is actually initialized (usePacketEvents or standalone plugin)
-        // SignTranslationProber uses 1.20+ sign APIs (Side, SignSide, Player#openSign)
-        boolean packetEventsInitialized = packetEventsIntegration != null
-                && packetEventsIntegration.isReadyForListeners();
-        if (packetEventsAvailable && packetEventsInitialized) {
-            if (isSignApiAvailable()) {
-                try {
-                    signTranslationProber = new SignTranslationProber();
-                    Bukkit.getPluginManager().registerEvents(signTranslationProber, this);
-                    signTranslationProber.register();
-                    getLogger().info("Sign translation probing enabled (PacketEvents)");
-                } catch (Throwable e) {
-                    signTranslationProber = null;
-                    getLogger().warning("Failed to register sign translation probing: " + e.getMessage());
-                }
-            } else {
-                getLogger().info("Sign translation probing requires 1.20+ server APIs - disabled on this version");
-            }
-        } else if (!packetEventsAvailable) {
-            getLogger().warning("Sign translation probing requires PacketEvents - disabled");
-        } else {
-            getLogger().warning("Sign translation probing requires an initialized PacketEvents API - disabled");
-        }
-
         // Commands are registered by LovelyCheckPlugin as a single /lovelychecker command.
         Logs.logComponent(Message.PLUGIN_LOADED.toComponent());
 
@@ -164,17 +107,11 @@ public class LovelyCheckConnectionPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        if (protocolLibIntegration != null) {
-            protocolLibIntegration.unregister();
-        }
         if (packetEventsIntegration != null) {
             packetEventsIntegration.unregister();
         }
         if (lunarApolloListener != null) {
             lunarApolloListener.unregister();
-        }
-        if (signTranslationProber != null) {
-            signTranslationProber.unregister();
         }
         LovelyCheckRegistry.clear();
     }
@@ -196,51 +133,13 @@ public class LovelyCheckConnectionPlugin extends JavaPlugin {
         }
     }
 
-    /**
-     * Check if the 1.20+ sign API (Side, SignSide, Player#openSign) is available.
-     * These classes were added in Bukkit 1.20 and are required by SignTranslationProber.
-     */
-    private boolean isSignApiAvailable() {
-        try {
-            Class.forName("org.bukkit.block.sign.Side");
-            return true;
-        } catch (ClassNotFoundException e) {
-            return false;
-        }
-    }
-
-    /**
-     * Detect if we're running on a hybrid server (Forge/Fabric + Bukkit).
-     * These servers often have issues with ProtocolLib's packet injection.
-     */
-    private boolean isHybridServer() {
-        String serverVersion = Bukkit.getVersion().toLowerCase();
-        String serverName = Bukkit.getName().toLowerCase();
-
-        // Check for known hybrid server software
-        return serverVersion.contains("arclight") ||
-                serverVersion.contains("mohist") ||
-                serverVersion.contains("catserver") ||
-                serverVersion.contains("magma") ||
-                serverVersion.contains("crucible") ||
-                serverVersion.contains("thermos") ||
-                serverVersion.contains("kcauldron") ||
-                serverVersion.contains("uranium") ||
-                serverName.contains("arclight") ||
-                serverName.contains("mohist") ||
-                serverName.contains("catserver") ||
-                serverName.contains("magma");
-    }
-
     public static LovelyCheckConnectionPlugin get() {
         return instance;
     }
 
-    public boolean isProtocolLibAvailable() {
-        return protocolLibAvailable;
-    }
-
     public boolean isPacketEventsAvailable() {
-        return packetEventsAvailable;
+        return packetEventsAvailable
+                && packetEventsIntegration != null
+                && packetEventsIntegration.isReadyForListeners();
     }
 }

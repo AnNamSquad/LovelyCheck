@@ -16,11 +16,8 @@ import java.util.regex.Pattern;
 /**
  * Handles automatic downloading of dependencies using Hopper.
  * <p>
- * This class registers and downloads:
- * <ul>
- *   <li>PacketEvents - Primary choice for hybrid servers (Arclight, Mohist, etc.)</li>
- *   <li>ProtocolLib - Fallback for standard Paper/Spigot servers</li>
- * </ul>
+ * This class registers and downloads PacketEvents, which is the only packet
+ * layer used by lovelycheck.
  * Downloaded plugins are automatically loaded at runtime without requiring a server restart.
  */
 public final class LovelyCheckHopper {
@@ -29,12 +26,6 @@ public final class LovelyCheckHopper {
     private static boolean requiresRestart = false;
     private static boolean enabled = true;
     private static Plugin registeredPlugin = null;
-
-    // Pattern to match ProtocolLib jar files
-    // Matches: ProtocolLib.jar, ProtocolLib-5.4.0.jar, ProtocolLib-SNAPSHOT.jar, ProtocolLib-beta.jar
-    private static final Pattern PROTOCOLLIB_PATTERN = Pattern.compile(
-        "(?i)^protocollib([-_][\\w.-]+)?\\.jar$"
-    );
 
     // Pattern to match PacketEvents jar files
     // Matches: packetevents-spigot-2.11.1.jar, PacketEvents.jar, etc.
@@ -76,53 +67,24 @@ public final class LovelyCheckHopper {
 
         BukkitHopper.register(plugin, deps -> {
             // We check for files in the plugins folder since plugins aren't loaded yet in constructor
-            boolean hasProtocolLib = pluginJarExists(PROTOCOLLIB_PATTERN);
             boolean hasPacketEvents = pluginJarExists(PACKETEVENTS_PATTERN);
-            boolean isHybrid = isHybridServer();
 
-            // For hybrid servers (Arclight, Mohist, etc.), prefer PacketEvents
-            // For standard servers, prefer ProtocolLib
-            if (isHybrid) {
-                // Hybrid server - download PacketEvents
-                if (!hasPacketEvents) {
-                    logger.info("Hybrid server detected - downloading PacketEvents for better compatibility");
-                    // PacketEvents from Modrinth
-                    deps.require(Dependency.modrinth("packetevents")
-                        .name("packetevents")
-                        .minVersion("2.7.0")
-                        .updatePolicy(UpdatePolicy.MINOR)
-                        .onFailure(FailurePolicy.WARN_SKIP)
-                        .build());
+            if (!hasPacketEvents) {
+                logger.info("PacketEvents not found - downloading PacketEvents for packet detection");
+                deps.require(Dependency.modrinth("packetevents")
+                    .name("packetevents")
+                    .minVersion("2.7.0")
+                    .updatePolicy(UpdatePolicy.MINOR)
+                    .onFailure(FailurePolicy.WARN_SKIP)
+                    .build());
 
-                    // Fallback: GitHub releases
-                    deps.require(Dependency.github("retrooper/packetevents")
-                        .name("packetevents")
-                        .minVersion("2.7.0")
-                        .assetPattern("packetevents-spigot-.*\\.jar")
-                        .updatePolicy(UpdatePolicy.MINOR)
-                        .onFailure(FailurePolicy.WARN_SKIP)
-                        .build());
-                }
-            } else {
-                // Standard server - download ProtocolLib
-                if (!hasProtocolLib && !hasPacketEvents) {
-                    // Primary source: Hangar (PaperMC's plugin repository)
-                    deps.require(Dependency.hangar("ProtocolLib")
-                        .name("ProtocolLib")
-                        .minVersion("5.3.0")
-                        .updatePolicy(UpdatePolicy.MINOR)
-                        .onFailure(FailurePolicy.WARN_SKIP)
-                        .build());
-
-                    // Fallback source: GitHub releases
-                    deps.require(Dependency.github("dmulloy2/ProtocolLib")
-                        .name("ProtocolLib")
-                        .minVersion("5.3.0")
-                        .assetPattern("ProtocolLib.jar")
-                        .updatePolicy(UpdatePolicy.MINOR)
-                        .onFailure(FailurePolicy.WARN_SKIP)
-                        .build());
-                }
+                deps.require(Dependency.github("retrooper/packetevents")
+                    .name("packetevents")
+                    .minVersion("2.7.0")
+                    .assetPattern("packetevents-spigot-.*\\.jar")
+                    .updatePolicy(UpdatePolicy.MINOR)
+                    .onFailure(FailurePolicy.WARN_SKIP)
+                    .build());
             }
         });
     }
@@ -189,29 +151,6 @@ public final class LovelyCheckHopper {
      */
     public static boolean isEnabled() {
         return enabled;
-    }
-
-    /**
-     * Detect if we're running on a hybrid server (Forge/Fabric + Bukkit).
-     * These servers often have issues with ProtocolLib's packet injection.
-     */
-    private static boolean isHybridServer() {
-        String serverVersion = Bukkit.getVersion().toLowerCase();
-        String serverName = Bukkit.getName().toLowerCase();
-
-        // Check for known hybrid server software
-        return serverVersion.contains("arclight") ||
-                serverVersion.contains("mohist") ||
-                serverVersion.contains("catserver") ||
-                serverVersion.contains("magma") ||
-                serverVersion.contains("crucible") ||
-                serverVersion.contains("thermos") ||
-                serverVersion.contains("kcauldron") ||
-                serverVersion.contains("uranium") ||
-                serverName.contains("arclight") ||
-                serverName.contains("mohist") ||
-                serverName.contains("catserver") ||
-                serverName.contains("magma");
     }
 
     /**

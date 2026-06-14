@@ -25,8 +25,8 @@ LovelyCheck supports three check modes:
 - 25 built-in sign fingerprints in `config.yml`.
 - Double confirmation for direct detections.
 - Batched sign probing with up to 4 checks per sign.
-- Fake sign packet flow when PacketEvents is available.
-- Real sign fallback when fake packet probing fails.
+- PacketEvents virtual sign packet flow.
+- No physical sign placement or real-sign fallback.
 - Translation shield handling with `PROTECTED` results.
 - Translation masking evidence from connection-time data.
 - Manual scans, join scans, and anticheat-triggered scans.
@@ -233,7 +233,7 @@ This is intentional. Shield evidence is useful for alerts and review, but it sho
 
 Water near the player should not cause a direct hack detection.
 
-The current engine does not depend on placing a visible sign inside the player's water block. With PacketEvents, it uses a fake client-side sign packet. If that is unavailable or fails, it uses a hidden world-bottom real sign location and restores the original block state.
+The current engine does not place a sign block in the world. It uses PacketEvents to send a fake client-side sign block, sign NBT, open-sign-editor packet, and close-window packet. If the packet probe cannot open or the client does not answer, LovelyCheck marks the probe as `PROTECTED` instead of falling back to a real sign.
 
 If the client does not answer the probe, LovelyCheck can mark the scan as `PROTECTED`, but water or lava should not turn a vanilla response into a specific mod detection.
 
@@ -248,14 +248,14 @@ LiquidBounce has a bundled fingerprint, but spoofed or protected builds may show
 
 OpSec and similar translation-shield mods are handled as anti-fingerprinting behavior. The plugin can flag blocked probes as PROTECTED, but it cannot always prove the exact shield mod.
 
-Water near a player should not create a direct false hack detection. The probe uses fake sign packets when available, otherwise a hidden restored sign location. A blocked or missing response may be marked PROTECTED, not as a specific client.
+Water near a player should not create a direct false hack detection. The probe uses PacketEvents virtual sign packets only. A blocked or missing response may be marked PROTECTED, not as a specific client.
 ```
 
 ## Requirements
 
 - Java 21
 - Paper, Purpur, or compatible Bukkit server for Minecraft 1.21.x
-- PacketEvents recommended for fake sign packet probing
+- PacketEvents required for virtual sign packet probing
 
 Optional integrations:
 
@@ -264,7 +264,6 @@ Optional integrations:
 - Vulcan
 - Spartan
 - PlaceholderAPI
-- ProtocolLib
 
 ## Build
 

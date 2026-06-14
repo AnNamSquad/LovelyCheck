@@ -151,7 +151,6 @@ public class ConfigManager {
     public long getJoinCheckDelayTicks() { return hacksConfig.getLong("auto-check-on-join.delay-ticks", 40L); }
 
     public boolean isSilentCheck() { return hacksConfig.getBoolean("silent-check", false); }
-    public boolean isFakeSignPacketsEnabled() { return hacksConfig.getBoolean("fake-sign-packets", false); }
     public boolean isDetectTranslationMaskingEnabled() {
         return hacksConfig.getBoolean("detect-translation-masking.enabled", true);
     }

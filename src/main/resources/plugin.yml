@@ -6,7 +6,6 @@ description: lovelycheck client/mod detection plugin.
 softdepend:
   - ViaVersion
   - ProtocolSupport
-  - ProtocolLib
   - packetevents
   - Geyser-Spigot
   - Floodgate

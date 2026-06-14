@@ -11,7 +11,6 @@ import org.lovelycheck.spigot.checks.HackDefinition;
 import org.lovelycheck.spigot.checks.commands.LovelyCheckerCommand;
 import org.lovelycheck.spigot.checks.listeners.AntiCheatListener;
 import org.lovelycheck.spigot.checks.listeners.JoinListener;
-import org.lovelycheck.spigot.checks.listeners.SignListener;
 import org.lovelycheck.spigot.checks.managers.CheckManager;
 import org.lovelycheck.spigot.checks.managers.ClientDataManager;
 import org.lovelycheck.spigot.checks.managers.ConfigManager;
@@ -68,7 +67,6 @@ public class LovelyCheckPlugin extends LovelyCheckConnectionPlugin {
         registerCommand("lovelychecker", lovelyCheckerCommand, lovelyCheckerCommand);
 
         PluginManager pluginManager = getServer().getPluginManager();
-        pluginManager.registerEvents(new SignListener(this), this);
         pluginManager.registerEvents(new JoinListener(this), this);
 
         AntiCheatListener antiCheatListener = new AntiCheatListener(this);

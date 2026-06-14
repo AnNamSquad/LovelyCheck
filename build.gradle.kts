@@ -59,9 +59,6 @@ repositories {
     maven("https://repo.codemc.io/repository/maven-snapshots/") {
         content { includeGroup("com.github.retrooper") }
     }
-    maven("https://repo.dmulloy2.net/repository/public/") {
-        content { includeGroup("com.comphenix.protocol") }
-    }
     maven("https://jitpack.io") {
         content { includeGroupByRegex("com\\.github\\..*") }
     }
@@ -73,10 +70,9 @@ repositories {
 }
 
 dependencies {
-    // Bukkit / Paper / Purpur / Protocol / PacketEvents (Compile Only)
+    // Bukkit / Paper / Purpur / PacketEvents (Compile Only)
     compileOnly("org.purpurmc.purpur:purpur-api:1.21.8-R0.1-SNAPSHOT")
     compileOnly("me.clip:placeholderapi:2.11.6")
-    compileOnly("net.dmulloy2:ProtocolLib:5.4.0")
     compileOnly("com.github.retrooper:packetevents-spigot:2.11.1")
     compileOnly("io.netty:netty-all:4.1.68.Final")
     compileOnly("org.geysermc.geyser:api:2.4.2-SNAPSHOT")
@@ -148,4 +144,3 @@ if (copyJar) {
         dependsOn(copyJarTask)
     }
 }
-

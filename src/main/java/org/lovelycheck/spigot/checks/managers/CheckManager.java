@@ -9,11 +9,6 @@ import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.block.Block;
-import org.bukkit.block.BlockState;
-import org.bukkit.block.Sign;
-import org.bukkit.block.sign.Side;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 import org.lovelycheck.core.LovelyCheckPlayer;
@@ -226,90 +221,21 @@ public class CheckManager {
 
         restoreCurrentSign(data);
 
-        if (plugin.getConfigManager().isFakeSignPacketsEnabled()
-                && !data.isForceRealSignForCurrentBatch()
-                && processFakePacketBatch(target, data, batch, uuid)) {
-            return;
-        }
-        data.setForceRealSignForCurrentBatch(false);
-        data.setCurrentBatchFakePacket(false);
-
-        Location signLoc = SignUtil.findAirBlock(target);
-        if (signLoc == null) {
-            finishCheck(uuid);
-            return;
-        }
-
-        Block block = signLoc.getBlock();
-        BlockState originalState = block.getState();
-
-        block.setType(Material.OAK_SIGN, false);
-        BlockState freshState = block.getState();
-        if (!(freshState instanceof Sign sign)) {
-            originalState.update(true, false);
-            finishCheck(uuid);
-            return;
-        }
-
-        var front = sign.getSide(Side.FRONT);
-        if (data.isLocaleProbe()) {
-            front.line(0, Component.keybind("key.jump"));
-            front.line(1, Component.empty());
-            front.line(2, Component.empty());
-            front.line(3, Component.keybind(CTRL_KEYBIND));
-        } else {
-            int maxHacks = getMaxHacksForBatch(data.getCurrentBatch());
-            for (int i = 0; i < SIGN_LINES; i++) {
-                if (i < maxHacks) {
-                    front.line(i, i < batch.size() ? buildComponent(batch.get(i)) : Component.empty());
-                } else if (i == SIGN_LINES - 1 && shouldUseControlLine(data.getCurrentBatch())) {
-                    front.line(i, Component.keybind(CTRL_KEYBIND));
-                } else {
-                    front.line(i, Component.empty());
-                }
-            }
-        }
-        sign.update(true, false);
-
-        data.setSignLocation(signLoc);
-        data.setOriginalState(originalState);
-
-        SignUtil.setAllowedEditor(signLoc, uuid, plugin);
-
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            if (!activeChecks.containsKey(uuid))
-                return;
-            SignUtil.sendBlockEntityPacket(target, signLoc, plugin);
-            Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                if (!activeChecks.containsKey(uuid))
-                    return;
-                SignUtil.sendOpenSignPacket(target, signLoc, plugin);
-                target.sendBlockChange(signLoc, originalState.getBlockData());
-            }, 1L);
-        });
-
-        data.setSignTimeoutTask(scheduleBatchTimeout(uuid, batch));
-    }
-
-    private boolean processFakePacketBatch(Player target, CheckPlayerData data,
-            List<HackDefinition> batch, UUID uuid) {
         Location signLoc = SignUtil.findHiddenFakeSignLocation(target, data.getCurrentBatch());
         if (signLoc == null) {
-            return false;
+            finishCheck(uuid);
+            return;
         }
 
         data.setSignLocation(signLoc);
-        data.setOriginalState(null);
         boolean includeControlLine = (shouldUseControlLine(data.getCurrentBatch()) || data.isLocaleProbe());
         if (!plugin.openFakeSignCheck(target, signLoc, batch, includeControlLine)) {
             data.setSignLocation(null);
-            data.setCurrentBatchFakePacket(false);
-            return false;
+            markBatchProtected(uuid, data, batch, "PacketEvents fake sign could not be opened");
+            return;
         }
 
-        data.setCurrentBatchFakePacket(true);
         data.setSignTimeoutTask(scheduleBatchTimeout(uuid, batch));
-        return true;
     }
 
     private BukkitTask scheduleBatchTimeout(UUID uuid, List<HackDefinition> batch) {
@@ -331,11 +257,6 @@ public class CheckManager {
             CheckPlayerData data = activeChecks.get(uuid);
             if (data == null)
                 return;
-            if (data.isCurrentBatchFakePacket()) {
-                restoreCurrentSign(data);
-                retryCurrentBatchWithRealSign(uuid, data, "fake sign timed out");
-                return;
-            }
             restoreCurrentSign(data);
 
             if (data.getCurrentBatch() == 0) {
@@ -362,11 +283,31 @@ public class CheckManager {
         }, timeoutTicks);
     }
 
-    private Component buildComponent(HackDefinition hack) {
-        return switch (hack.getMode()) {
-            case METEOR, TRANSLATE -> Component.translatable(hack.getKey(), hack.getFallback());
-            case KEYBIND -> Component.keybind(hack.getKey());
-        };
+    private void markBatchProtected(UUID uuid, CheckPlayerData data, List<HackDefinition> batch, String reason) {
+        restoreCurrentSign(data);
+
+        if (data.isLocaleProbe()) {
+            finishLocaleProbe(uuid, "Unknown (" + reason + ")");
+            return;
+        }
+
+        plugin.getLogger().warning("[lovelycheck] Target " + uuid + " probe failed: "
+                + reason + ". Marking current probe as PROTECTED.");
+
+        if (data.getCurrentBatch() == 0) {
+            List<HackDefinition> allHacks = data.getBatches().stream().flatMap(List::stream).toList();
+            for (HackDefinition h : allHacks) {
+                data.getResults().put(h.getId(), HackResult.PROTECTED);
+            }
+            data.setCurrentBatch(data.getBatches().size());
+        } else {
+            for (HackDefinition h : batch) {
+                data.getResults().put(h.getId(), HackResult.PROTECTED);
+            }
+            data.incrementBatch();
+        }
+
+        scheduleNextOrFinish(uuid);
     }
 
     private String detectLocale(String line0) {
@@ -451,28 +392,16 @@ public class CheckManager {
 
         if (data.getSignTimeoutTask() != null)
             data.getSignTimeoutTask().cancel();
-        boolean fakePacketResponse = data.isCurrentBatchFakePacket();
         restoreCurrentSign(data);
 
         List<HackDefinition> batch = data.getCurrentBatchHacks();
 
         if (data.isLocaleProbe()) {
-            data.setCurrentBatchFakePacket(false);
-            data.setForceRealSignForCurrentBatch(false);
             String line0 = lines.length > 0 ? lines[0].strip() : "";
             String detectedLocale = detectLocale(line0);
             finishLocaleProbe(uuid, detectedLocale);
             return;
         }
-
-        // Only truly-unsafe responses (raw JSON components) warrant a real-sign retry.
-        // Key-echo (OpSec returning the raw key name) is a valid PROTECTED response.
-        if (fakePacketResponse && hasUnsafeFakePacketResponse(batch, lines)) {
-            retryCurrentBatchWithRealSign(uuid, data, "raw component response");
-            return;
-        }
-        data.setCurrentBatchFakePacket(false);
-        data.setForceRealSignForCurrentBatch(false);
 
         boolean controlLineExpected = shouldUseControlLine(data.getCurrentBatch());
         String ctrlResp = controlLineExpected && lines.length > 3 ? lines[3].strip() : "";
@@ -577,57 +506,6 @@ public class CheckManager {
             }
         }
         return false;
-    }
-
-    /**
-     * Returns true only when the client sent back a raw JSON component string,
-     * which means the fake-packet NBT was never rendered by the client
-     * (e.g. a proxy / reflection hack returning serialized component JSON).
-     *
-     * Key-echo responses (where the response equals the probe key verbatim,
-     * e.g. OpSec returning "key.meteor-client.open-gui") are intentionally
-     * NOT considered unsafe — they are classifiable as PROTECTED by evaluateResponse.
-     */
-    private boolean hasUnsafeFakePacketResponse(List<HackDefinition> batch, String[] lines) {
-        for (int i = 0; i < batch.size() && i < lines.length; i++) {
-            String response = lines[i] != null ? lines[i].strip() : "";
-            if (looksLikeRawComponent(response)) {
-                return true;
-            }
-        }
-        String control = lines.length > 3 && lines[3] != null ? lines[3].strip() : "";
-        return looksLikeRawComponent(control);
-    }
-
-    private boolean looksLikeRawComponent(String response) {
-        if (response.isEmpty()) {
-            return false;
-        }
-        String lower = response.toLowerCase(Locale.ROOT);
-        return (lower.startsWith("{") || lower.startsWith("["))
-                && (lower.contains("\"translate\"")
-                        || lower.contains("\"keybind\"")
-                        || lower.contains("\"fallback\"")
-                        || lower.contains("\"text\""));
-    }
-
-    private void retryCurrentBatchWithRealSign(UUID uuid, CheckPlayerData data, String reason) {
-        data.setCurrentBatchFakePacket(false);
-        data.setForceRealSignForCurrentBatch(true);
-        plugin.getLogger().info("[lovelycheck] Fake sign-check packet flow for "
-                + uuid + " returned an unsafe result (" + reason + "); retrying with real-sign fallback.");
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            CheckPlayerData current = activeChecks.get(uuid);
-            Player target = Bukkit.getPlayer(uuid);
-            if (current != data) {
-                return;
-            }
-            if (target == null || !target.isOnline()) {
-                finishCheck(uuid);
-                return;
-            }
-            processBatch(target, data);
-        });
     }
 
     private void scheduleNextOrFinish(UUID uuid) {
@@ -977,21 +855,8 @@ public class CheckManager {
         Location loc = data.getSignLocation();
         if (loc == null)
             return;
-        BlockState originalState = data.getOriginalState();
         data.setSignLocation(null);
-        data.setOriginalState(null);
-        if (originalState == null) {
-            plugin.restoreFakeSignCheck(data.getTargetUUID(), loc);
-            return;
-        }
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            try {
-                if (originalState != null)
-                    originalState.update(true, false);
-            } catch (Exception e) {
-                plugin.getLogger().warning("[lovelycheck] Restore: " + e.getMessage());
-            }
-        });
+        plugin.restoreFakeSignCheck(data.getTargetUUID(), loc);
     }
 
     public void cleanup() {

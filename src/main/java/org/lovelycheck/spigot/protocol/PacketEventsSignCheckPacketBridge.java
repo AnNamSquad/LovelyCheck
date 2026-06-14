@@ -17,6 +17,7 @@ import com.github.retrooper.packetevents.util.Vector3i;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientUpdateSign;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBlockChange;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBlockEntityData;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerCloseWindow;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerOpenSignEditor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -86,6 +87,7 @@ public final class PacketEventsSignCheckPacketBridge implements SignCheckPacketB
             playerManager.sendPacket(player, new WrapperPlayServerBlockEntityData(
                     position, BlockEntityTypes.SIGN, buildSignNbt(location, batch, includeControlLine)));
             playerManager.sendPacket(player, new WrapperPlayServerOpenSignEditor(position, true));
+            playerManager.sendPacket(player, new WrapperPlayServerCloseWindow(0));
 
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (sessions.containsKey(player.getUniqueId())) {
@@ -114,6 +116,9 @@ public final class PacketEventsSignCheckPacketBridge implements SignCheckPacketB
 
     private void handleUpdateSign(PacketReceiveEvent event) {
         UUID playerUuid = event.getUser().getUUID();
+        if (playerUuid == null) {
+            return;
+        }
         FakeSignSession session = sessions.get(playerUuid);
         if (session == null) {
             return;
@@ -219,7 +224,18 @@ public final class PacketEventsSignCheckPacketBridge implements SignCheckPacketB
         if (location.getWorld() == null || !location.getWorld().equals(player.getWorld())) {
             return;
         }
-        player.sendBlockChange(location, location.getBlock().getBlockData());
+        if (PacketEvents.getAPI() == null || PacketEvents.getAPI().getPlayerManager() == null) {
+            return;
+        }
+        try {
+            Vector3i position = new Vector3i(location.getBlockX(), location.getBlockY(), location.getBlockZ());
+            WrappedBlockState state = WrappedBlockState.getByString(location.getBlock().getBlockData().getAsString());
+            PacketEvents.getAPI().getPlayerManager().sendPacket(player,
+                    new WrapperPlayServerBlockChange(position, state.getGlobalId()));
+        } catch (Throwable e) {
+            plugin.getLogger().warning("[lovelycheck] fake sign restore failed for "
+                    + player.getName() + ": " + e.getMessage());
+        }
     }
 
     private record FakeSignSession(Location location, Vector3i position) {

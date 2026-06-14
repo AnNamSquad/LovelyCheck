@@ -364,7 +364,7 @@ label = "Bedrock"
 actions = []
 
 [probing]
-enabled = true
+enabled = false
 
 [probing.settings]
 delay_ticks = 40

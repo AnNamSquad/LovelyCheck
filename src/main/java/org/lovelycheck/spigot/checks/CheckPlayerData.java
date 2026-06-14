@@ -1,7 +1,6 @@
 package org.lovelycheck.spigot.checks;
 
 import org.bukkit.Location;
-import org.bukkit.block.BlockState;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.HashSet;
@@ -23,10 +22,7 @@ public class CheckPlayerData {
     private long scanId = -1;
 
     private Location signLocation;
-    private BlockState originalState;
     private BukkitTask signTimeoutTask;
-    private boolean currentBatchFakePacket;
-    private boolean forceRealSignForCurrentBatch;
     private boolean translationMaskingDetected;
     private final Set<String> translationMaskedHackIds = new HashSet<>();
 
@@ -63,18 +59,8 @@ public class CheckPlayerData {
 
     public Location getSignLocation()            { return signLocation; }
     public void setSignLocation(Location l)      { this.signLocation = l; }
-    public BlockState getOriginalState()         { return originalState; }
-    public void setOriginalState(BlockState s)   { this.originalState = s; }
     public BukkitTask getSignTimeoutTask()       { return signTimeoutTask; }
     public void setSignTimeoutTask(BukkitTask t) { this.signTimeoutTask = t; }
-    public boolean isCurrentBatchFakePacket()    { return currentBatchFakePacket; }
-    public void setCurrentBatchFakePacket(boolean currentBatchFakePacket) {
-        this.currentBatchFakePacket = currentBatchFakePacket;
-    }
-    public boolean isForceRealSignForCurrentBatch() { return forceRealSignForCurrentBatch; }
-    public void setForceRealSignForCurrentBatch(boolean forceRealSignForCurrentBatch) {
-        this.forceRealSignForCurrentBatch = forceRealSignForCurrentBatch;
-    }
     public boolean isTranslationMaskingDetected() { return translationMaskingDetected; }
     public void setTranslationMaskingDetected(boolean translationMaskingDetected) {
         this.translationMaskingDetected = translationMaskingDetected;

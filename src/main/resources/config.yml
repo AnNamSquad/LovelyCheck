@@ -22,7 +22,6 @@ alerts:
   default-enabled: true
 
 silent-check: false
-fake-sign-packets: true
 
 # Detect clients that make configured mod translation/keybind probes look
 # vanilla while connection-time evidence already matched the same configured

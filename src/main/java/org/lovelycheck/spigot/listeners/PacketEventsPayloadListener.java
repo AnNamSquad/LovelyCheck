@@ -36,8 +36,6 @@ import java.util.UUID;
 
 /**
  * PacketEvents-based custom payload listener for Spigot/Paper/Arclight servers.
- * This is an alternative to the ProtocolLib-based listener that works better
- * with hybrid server software like Arclight.
  */
 public class PacketEventsPayloadListener extends PacketListenerAbstract {
 
