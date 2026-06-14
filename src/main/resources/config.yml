@@ -1,0 +1,302 @@
+# lovelycheck
+
+prefix: "<yellow>[lovelycheck] <gray>"
+language: "en"
+
+discord:
+  enabled: false
+  webhook-url: "https://discord.com/api/webhooks/CHANGE_ME"
+  embed-color: 16776960
+  message: "**Player:** &name&\n**Checked by:** &checker&\n**Reason:** &reason&\n**Hacks checked:** &hacks&\n**Results:**\n&results&"
+  locale:
+    webhook-url: "https://discord.com/api/webhooks/CHANGE_ME"
+    embed-color: 8355711
+
+bedrock:
+  enabled: true
+  prefixes:
+    - "."
+    - "*"
+
+alerts:
+  default-enabled: true
+
+silent-check: false
+fake-sign-packets: true
+
+# Detect clients that make configured mod translation/keybind probes look
+# vanilla while connection-time evidence already matched the same configured
+# mod. This catches OpSec-style masking without flagging true vanilla clients.
+detect-translation-masking:
+  enabled: true
+  minimum-checks: 1
+  punishable: false
+  display-name: "Translation Masking Bypass"
+
+double-confirmation:
+  enabled: true
+
+shield-detection:
+  timeout-ticks: 20
+  buffer-ticks: 20
+
+messages:
+  no-permission: "{prefix}<red>You don't have permission to do this."
+  player-not-found: "{prefix}<red>Player <white>{player} <red>not found."
+  already-checking: "{prefix}<yellow>{player} <white>is already being checked."
+  check-started: "{prefix}<white>Starting check on <yellow>{player}<white>..."
+  check-complete: "{prefix}<white>Check complete for <yellow>{player}<white>:"
+  check-timeout: "{prefix}<yellow>{player} <white>did not respond - marked as <red>PROTECTED<white>."
+  reload-done: "{prefix}<green>Configuration reloaded."
+  anticheat-trigger: "{prefix}<gray>Anticheat flagged <yellow>{player}<gray>. Queuing auto-check..."
+  join-check: "{prefix}<gray>Auto-checking <yellow>{player} <gray>on join..."
+  invalid-hack: "{prefix}<red>Unknown hack: <white>{hack}"
+  bedrock-skip: "{prefix}<yellow>{player} <gray>is a Bedrock player - check skipped."
+  alerts-enabled: "{prefix}<green>Alerts enabled."
+  alerts-disabled: "{prefix}<red>Alerts disabled."
+
+hacks:
+  meteor-client:
+    display-name: "Meteor Client (Fabric)"
+    key: "key.meteor-client.open-gui"
+    mode: KEYBIND
+
+  liquidbounce:
+    display-name: "LiquidBounce"
+    key: "liquidbounce.module.killaura.name"
+    mode: TRANSLATE
+
+  vape:
+    display-name: "Vape"
+    key: "key.vape.open_gui"
+    mode: KEYBIND
+
+  freecam:
+    display-name: "Freecam"
+    key: "key.freecam.toggle"
+    mode: KEYBIND
+
+  wurst:
+    display-name: "Wurst Client (-1.21)"
+    key: "key.wurst.zoom"
+    mode: KEYBIND
+
+  xray-fabric:
+    display-name: "XRay (Fabric)"
+    key: "xray.config.toggle"
+    mode: KEYBIND
+
+  chestesp:
+    display-name: "ChestESP"
+    key: "key.chestesp.toggle"
+    mode: KEYBIND
+
+  killaura-fabric:
+    display-name: "KillAura (Fabric)"
+    key: "key.killaura"
+    mode: KEYBIND
+
+  autofish:
+    display-name: "AutoFish"
+    key: "key.autofish.open_gui"
+    mode: KEYBIND
+
+  autototem:
+    display-name: "AutoTotem"
+    key: "key.autototem.toggle"
+    mode: KEYBIND
+
+  autototem-meteor:
+    display-name: "AutoTotem (Meteor)"
+    key: "module.meteor-client.auto-totem"
+    mode: TRANSLATE
+
+  lumina:
+    display-name: "Lumina"
+    key: "key.lumina.open_click_gui"
+    mode: KEYBIND
+
+  autoswitch:
+    display-name: "AutoSwitch"
+    key: "key.autoswitch.toggle"
+    mode: KEYBIND
+
+  bleachhack:
+    display-name: "BleachHack"
+    key: "bleachhack.module.killaura"
+    mode: TRANSLATE
+
+  aristois:
+    display-name: "Aristois"
+    key: "emc.module.killaura.name"
+    mode: TRANSLATE
+
+  coffee:
+    display-name: "Coffee Client"
+    key: "coffee.module.killaura.name"
+    mode: TRANSLATE
+
+  world-downloader:
+    display-name: "World Downloader"
+    key: "key.wdl.startStop"
+    mode: TRANSLATE
+
+  item-scroller:
+    display-name: "Item Scroller"
+    key: "itemscroller.hotkeys.category"
+    mode: TRANSLATE
+
+  xaeros-minimap:
+    display-name: "Xaero's Minimap"
+    key: "gui.xaero_minimap_settings"
+    mode: TRANSLATE
+
+  journeymap:
+    display-name: "JourneyMap"
+    key: "key.journeymap.fullscreen"
+    mode: KEYBIND
+
+  autoclicker-fabric:
+    display-name: "AutoClicker (Fabric)"
+    key: "autoclicker-fabric.hud.holding"
+    mode: TRANSLATE
+
+  antiafk:
+    display-name: "AntiAFK"
+    key: "key.antiafk.toggle"
+    mode: TRANSLATE
+
+  auto-clicker-mc:
+    display-name: "Auto Clicker (p1k0chu)"
+    key: "key.auto-clicker_.toggle"
+    mode: KEYBIND
+
+  inventory-profiles-next:
+    display-name: "Inventory Profiles Next"
+    key: "inventoryprofiles.config.name.open_config_menu"
+    mode: TRANSLATE
+
+  tweakeroo:
+    display-name: "Tweakeroo"
+    key: "tweakeroo.config.hotkey.name.openConfigGui"
+    mode: TRANSLATE
+
+default-check-hacks:
+  - meteor-client
+  - liquidbounce
+  - vape
+  - freecam
+  - wurst
+  - xray-fabric
+  - chestesp
+  - killaura-fabric
+  - autofish
+  - autototem
+  - autototem-meteor
+  - lumina
+  - autoswitch
+  - bleachhack
+  - aristois
+  - coffee
+  - world-downloader
+  - item-scroller
+  - xaeros-minimap
+  - journeymap
+  - autoclicker-fabric
+  - antiafk
+  - auto-clicker-mc
+  - inventory-profiles-next
+  - tweakeroo
+
+auto-check-on-join:
+  enabled: true
+  only-first-join: false
+  delay-ticks: 100
+  hacks:
+    - meteor-client
+    - liquidbounce
+    - vape
+    - freecam
+    - wurst
+    - xray-fabric
+    - chestesp
+    - killaura-fabric
+    - autofish
+    - autototem
+    - autototem-meteor
+    - lumina
+    - autoswitch
+    - bleachhack
+    - aristois
+    - coffee
+    - world-downloader
+    - item-scroller
+    - xaeros-minimap
+    - journeymap
+    - autoclicker-fabric
+    - antiafk
+    - auto-clicker-mc
+    - inventory-profiles-next
+    - tweakeroo
+
+detect-flag:
+  enabled: false
+  anticheats:
+    grim: true
+    vulcan: true
+    spartan: true
+  cooldown-hours: 24
+  hacks:
+    - meteor-client
+    - liquidbounce
+    - vape
+    - freecam
+    - wurst
+    - xray-fabric
+    - chestesp
+    - killaura-fabric
+    - autofish
+    - autototem
+    - autototem-meteor
+    - lumina
+    - autoswitch
+    - bleachhack
+    - aristois
+    - coffee
+    - world-downloader
+    - item-scroller
+    - xaeros-minimap
+    - journeymap
+    - autoclicker-fabric
+    - antiafk
+    - auto-clicker-mc
+    - inventory-profiles-next
+    - tweakeroo
+
+punishment:
+  enabled: true
+  kick-first: true
+  kick-command: "kick %player% %reason%"
+  command: "tempban %player% %duration% %reason%"
+  reason: "Unallowed client/mod: %detections%"
+  durations:
+    1: "15m"
+    2: "30m"
+    3: "1d"
+    4: "3d"
+    5: "30d"
+
+command-if-positive:
+  enabled: false
+  command: "tempban %player% 14d Cheating"
+
+command-if-protected:
+  enabled: false
+  command: "tempban %player% 14d Cheating"
+
+command-if-clean:
+  enabled: false
+  command: "give %player% diamond 1"
+
+timeout-ticks: 200
+between-sign-ticks: 20
