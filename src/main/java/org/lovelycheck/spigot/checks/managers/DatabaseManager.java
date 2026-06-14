@@ -118,10 +118,11 @@ public class DatabaseManager {
     }
 
     public record PunishmentData(String duration, String reason) {}
+    public record PunishmentRecord(int offense, PunishmentData data) {}
 
-    public int getNextOffenseAndSavePunishment(String targetName, String targetUUID,
+    public PunishmentRecord getNextOffenseAndSavePunishment(String targetName, String targetUUID,
                                                             java.util.function.BiFunction<Integer, String, PunishmentData> detailsProvider) {
-        if (connection == null) return 1;
+        if (connection == null) return new PunishmentRecord(1, new PunishmentData("30d", ""));
         try {
             connection.setAutoCommit(false);
             int offense = 1;
@@ -150,7 +151,7 @@ public class DatabaseManager {
                 ps.executeUpdate();
             }
             connection.commit();
-            return offense;
+            return new PunishmentRecord(offense, details);
         } catch (SQLException e) {
             try {
                 if (connection != null) connection.rollback();
@@ -158,7 +159,7 @@ public class DatabaseManager {
                 // ignore
             }
             plugin.getLogger().warning("Failed to save punishment atomically: " + e.getMessage());
-            return 1;
+            return new PunishmentRecord(1, new PunishmentData("30d", ""));
         } finally {
             try {
                 if (connection != null) connection.setAutoCommit(true);

@@ -10,6 +10,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public class CheckPlayerData {
 
     private final UUID targetUUID;
@@ -29,6 +31,7 @@ public class CheckPlayerData {
     private boolean confirmationScan = false;
     private final Map<String, HackResult> firstScanResults = new LinkedHashMap<>();
     private boolean localeProbe = false;
+    private final AtomicBoolean responded = new AtomicBoolean(false);
 
     public CheckPlayerData(UUID targetUUID, UUID initiatorUUID,
                            List<List<HackDefinition>> batches,
@@ -75,4 +78,5 @@ public class CheckPlayerData {
 
     public boolean isLocaleProbe() { return localeProbe; }
     public void setLocaleProbe(boolean localeProbe) { this.localeProbe = localeProbe; }
+    public AtomicBoolean getResponded() { return responded; }
 }

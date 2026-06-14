@@ -227,6 +227,7 @@ public class CheckManager {
         List<HackDefinition> batch = data.getCurrentBatchHacks();
 
         restoreCurrentSign(data);
+        data.getResponded().set(false);
 
         Location signLoc = SignUtil.findHiddenFakeSignLocation(target, data.getCurrentBatch());
         if (signLoc == null) {
@@ -264,6 +265,9 @@ public class CheckManager {
             CheckPlayerData data = activeChecks.get(uuid);
             if (data == null)
                 return;
+            if (!data.getResponded().compareAndSet(false, true)) {
+                return;
+            }
             restoreCurrentSign(data);
 
             if (data.getCurrentBatch() == 0) {
@@ -376,6 +380,10 @@ public class CheckManager {
         CheckPlayerData data = activeChecks.get(uuid);
         if (data == null)
             return;
+
+        if (!data.getResponded().compareAndSet(false, true)) {
+            return;
+        }
 
         if (data.getSignTimeoutTask() != null)
             data.getSignTimeoutTask().cancel();
@@ -643,7 +651,6 @@ public class CheckManager {
         for (HackResult result : HackResult.values()) {
             resultGroups.put(result, new ArrayList<>());
         }
-        StringBuilder resultText = new StringBuilder();
 
         for (HackDefinition hack : allHacks) {
             HackResult r = data.getResults().getOrDefault(hack.getId(), HackResult.SKIPPED);
@@ -652,7 +659,6 @@ public class CheckManager {
             } else {
                 resultGroups.get(r).add(hack.getDisplayName());
             }
-            resultText.append(hack.getDisplayName()).append(": ").append(r.name()).append("\n");
         }
 
         List<String> detected = resultGroups.get(HackResult.DETECTED);
@@ -758,10 +764,10 @@ public class CheckManager {
         Player ini = Bukkit.getPlayer(data.getInitiatorUUID());
         if (ini == null || !ini.isOnline())
             return;
-        boolean gets = (ini.hasPermission("lovelycheck.alerts") || ini.hasPermission("lovelychecker.alerts"))
+        boolean alreadyReceivesViaBroadcast = (ini.hasPermission("lovelycheck.alerts") || ini.hasPermission("lovelychecker.alerts"))
                 && plugin.hasAlertsEnabled(ini.getUniqueId());
         // Direct message the initiator ONLY if they won't already receive the message via the broadcast
-        if (!gets)
+        if (!alreadyReceivesViaBroadcast)
             ini.sendMessage(msg);
     }
 
@@ -793,7 +799,7 @@ public class CheckManager {
             List<String> violations, ConfigManager cfg) {
         String detections = String.join(", ", violations);
 
-        int offense = plugin.getDatabaseManager().getNextOffenseAndSavePunishment(targetName, targetUUID, (off, uuid) -> {
+        DatabaseManager.PunishmentRecord pRecord = plugin.getDatabaseManager().getNextOffenseAndSavePunishment(targetName, targetUUID, (off, uuid) -> {
             boolean kickOnly = cfg.isPunishmentKickFirst() && off == 1;
             int banOffense = cfg.isPunishmentKickFirst() ? off - 1 : off;
             String dur = kickOnly ? "kick" : getPunishmentDuration(banOffense, cfg.getPunishmentDurations());
@@ -802,11 +808,11 @@ public class CheckManager {
             return new DatabaseManager.PunishmentData(dur, reas);
         });
 
+        int offense = pRecord.offense();
+        String duration = pRecord.data().duration();
+        String reason = pRecord.data().reason();
+
         boolean kickOnly = cfg.isPunishmentKickFirst() && offense == 1;
-        int banOffense = cfg.isPunishmentKickFirst() ? offense - 1 : offense;
-        String duration = kickOnly ? "kick" : getPunishmentDuration(banOffense, cfg.getPunishmentDurations());
-        String reason = applyPunishmentPlaceholders(cfg.getPunishmentReason(),
-                targetName, targetUUID, offense, duration, detections);
         String commandTemplate = kickOnly ? cfg.getPunishmentKickCommand() : cfg.getPunishmentCommand();
         String command = applyPunishmentPlaceholders(commandTemplate,
                 targetName, targetUUID, offense, duration, detections)
