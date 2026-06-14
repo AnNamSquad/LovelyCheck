@@ -47,7 +47,12 @@ public class LovelyCheckConnectionPlugin extends JavaPlugin {
             } catch (Throwable e) {
                 getLogger().warning("Failed to initialize PacketEvents: " + e.getMessage());
                 packetEventsAvailable = false;
-                packetEventsIntegration = null;
+                if (packetEventsIntegration != null) {
+                    try {
+                        packetEventsIntegration.unregister();
+                    } catch (Throwable ignored) {}
+                    packetEventsIntegration = null;
+                }
             }
         }
     }
@@ -57,6 +62,12 @@ public class LovelyCheckConnectionPlugin extends JavaPlugin {
         // Re-check PacketEvents availability during onEnable() if not found during onLoad()
         // Paper's new plugin system may not have loaded packetevents' classes during our onLoad()
         if (!packetEventsAvailable) {
+            if (packetEventsIntegration != null) {
+                try {
+                    packetEventsIntegration.unregister();
+                } catch (Throwable ignored) {}
+                packetEventsIntegration = null;
+            }
             packetEventsAvailable = isPacketEventsPresent();
             if (packetEventsAvailable) {
                 try {
@@ -65,7 +76,12 @@ public class LovelyCheckConnectionPlugin extends JavaPlugin {
                 } catch (Throwable e) {
                     getLogger().warning("Failed to initialize PacketEvents: " + e.getMessage());
                     packetEventsAvailable = false;
-                    packetEventsIntegration = null;
+                    if (packetEventsIntegration != null) {
+                        try {
+                            packetEventsIntegration.unregister();
+                        } catch (Throwable ignored) {}
+                        packetEventsIntegration = null;
+                    }
                 }
             }
         }

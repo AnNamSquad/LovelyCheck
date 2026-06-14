@@ -70,6 +70,7 @@ public class CheckManager {
     public void removePlayer(UUID uuid) {
         latestDetectedHacks.remove(uuid);
         activeChecks.remove(uuid);
+        lastAutoCheck.remove(uuid);
     }
 
     public boolean canAutoCheck(UUID uuid) {
@@ -715,7 +716,7 @@ public class CheckManager {
         final String cName = checkerName;
         final boolean isPunishable = punishable;
 
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        plugin.getDatabaseManager().getExecutor().submit(() -> {
             long scanId = plugin.getDatabaseManager().saveScan(
                     "hack", tn, tUUID, cName, data.getReason(), isPunishable);
             for (HackDefinition hack : allHacks) {

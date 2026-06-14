@@ -4,14 +4,23 @@ import org.lovelycheck.spigot.LovelyCheckPlugin;
 
 import java.io.File;
 import java.sql.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class DatabaseManager {
 
     private final LovelyCheckPlugin plugin;
     private Connection connection;
+    private final ExecutorService dbExecutor;
 
     public DatabaseManager(LovelyCheckPlugin plugin) {
         this.plugin = plugin;
+        this.dbExecutor = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "LovelyCheck-DB-Pool");
+            t.setDaemon(true);
+            return t;
+        });
         connect();
         createTables();
     }
@@ -142,7 +151,64 @@ public class DatabaseManager {
         }
     }
 
+    public synchronized int getNextOffenseAndSavePunishment(String targetName, String targetUUID,
+                                                            String duration, String reason) {
+        if (connection == null) return 1;
+        try {
+            connection.setAutoCommit(false);
+            int offense = 1;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT COUNT(*) FROM punishments WHERE target_uuid = ?")) {
+                ps.setString(1, targetUUID);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        offense = rs.getInt(1) + 1;
+                    }
+                }
+            }
+            String sql = "INSERT INTO punishments (target_name,target_uuid,offense,duration,reason,timestamp) "
+                    + "VALUES (?,?,?,?,?,?)";
+            try (PreparedStatement ps = connection.prepareStatement(sql)) {
+                ps.setString(1, targetName);
+                ps.setString(2, targetUUID);
+                ps.setInt(3, offense);
+                ps.setString(4, duration);
+                ps.setString(5, reason);
+                ps.setLong(6, System.currentTimeMillis());
+                ps.executeUpdate();
+            }
+            connection.commit();
+            return offense;
+        } catch (SQLException e) {
+            try {
+                if (connection != null) connection.rollback();
+            } catch (SQLException ex) {
+                // ignore
+            }
+            plugin.getLogger().warning("Failed to save punishment atomically: " + e.getMessage());
+            return 1;
+        } finally {
+            try {
+                if (connection != null) connection.setAutoCommit(true);
+            } catch (SQLException e) {
+                // ignore
+            }
+        }
+    }
+
+    public ExecutorService getExecutor() {
+        return dbExecutor;
+    }
+
     public synchronized void close() {
+        dbExecutor.shutdown();
+        try {
+            if (!dbExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                dbExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            dbExecutor.shutdownNow();
+        }
         try {
             if (connection != null && !connection.isClosed()) connection.close();
         } catch (SQLException e) {
