@@ -186,6 +186,18 @@ public class CheckManager {
         for (int i = firstBatchSize; i < hacks.size(); i += secondBatchSize) {
             batches.add(new ArrayList<>(hacks.subList(i, Math.min(i + secondBatchSize, hacks.size()))));
         }
+
+        // Avoid single-hack last batch by rebalancing from the previous batch if possible
+        if (batches.size() > 1) {
+            List<HackDefinition> lastBatch = batches.get(batches.size() - 1);
+            if (lastBatch.size() == 1) {
+                List<HackDefinition> prevBatch = batches.get(batches.size() - 2);
+                if (prevBatch.size() > 1) {
+                    HackDefinition moved = prevBatch.remove(prevBatch.size() - 1);
+                    lastBatch.add(0, moved);
+                }
+            }
+        }
         return batches;
     }
 
@@ -398,7 +410,7 @@ public class CheckManager {
             return;
         }
 
-        boolean controlLineExpected = shouldUseControlLine(data.getCurrentBatch());
+        boolean controlLineExpected = shouldUseControlLine(data.getCurrentBatch()) && batch.size() < 4;
         String ctrlResp = controlLineExpected && lines.length > 3 ? lines[3].strip() : "";
 
         boolean exploitPreventer = controlLineExpected && ctrlResp.equalsIgnoreCase(CTRL_KEYBIND);
@@ -827,12 +839,23 @@ public class CheckManager {
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
             }
 
-            sendResultLine(data, Component.text("Punishment: offense #", NamedTextColor.YELLOW)
+            Component punishmentMsg = Component.text("Punishment: offense #", NamedTextColor.YELLOW)
                     .append(Component.text(String.valueOf(offense), NamedTextColor.WHITE))
                     .append(Component.text(" for ", NamedTextColor.YELLOW))
                     .append(Component.text(action, NamedTextColor.WHITE))
                     .append(Component.text(" - ", NamedTextColor.GRAY))
-                    .append(Component.text(compactNames(violations), NamedTextColor.RED)));
+                    .append(Component.text(compactNames(violations), NamedTextColor.RED));
+
+            if (plugin.getConfigManager().isSilentCheck()) {
+                if (data.getInitiatorUUID() != null) {
+                    Player ini = Bukkit.getPlayer(data.getInitiatorUUID());
+                    if (ini != null && ini.isOnline()) {
+                        ini.sendMessage(MM.deserialize(plugin.getConfigManager().getPrefix()).append(punishmentMsg));
+                    }
+                }
+            } else {
+                sendResultLine(data, punishmentMsg);
+            }
         });
     }
 
