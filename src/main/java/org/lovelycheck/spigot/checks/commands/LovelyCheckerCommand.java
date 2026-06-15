@@ -132,84 +132,183 @@ public final class LovelyCheckerCommand implements CommandExecutor, TabCompleter
             return true;
         }
 
+        openGeneralSettingsDialog(player);
+        return true;
+    }
+
+    // ── Page 1: General Settings ──────────────────────────────────────────────
+    private void openGeneralSettingsDialog(Player player) {
         ConfigManager configManager = plugin.getConfigManager();
+
         List<DialogInput> inputs = new java.util.ArrayList<>();
-
         inputs.add(DialogInput.bool("join_check", Component.text("Auto Check on Join"))
-                .initial(configManager.isJoinCheckEnabled())
-                .build());
+                .initial(configManager.isJoinCheckEnabled()).build());
         inputs.add(DialogInput.bool("punishment", Component.text("Enable Punishments"))
-                .initial(configManager.isPunishmentEnabled())
-                .build());
+                .initial(configManager.isPunishmentEnabled()).build());
         inputs.add(DialogInput.bool("silent", Component.text("Silent Checks"))
-                .initial(configManager.isSilentCheck())
-                .build());
+                .initial(configManager.isSilentCheck()).build());
         inputs.add(DialogInput.bool("detect_flag", Component.text("Anticheat Flag Checks"))
-                .initial(configManager.isDetectFlagEnabled())
-                .build());
+                .initial(configManager.isDetectFlagEnabled()).build());
         inputs.add(DialogInput.bool("double_confirm", Component.text("Double Confirmation"))
-                .initial(configManager.isConfirmationEnabled())
-                .build());
-
-        Map<String, HackDefinition> registeredHacks = configManager.getHacks();
-        List<HackDefinition> defaultHacks = configManager.getDefaultLovelyCheck();
-        for (HackDefinition hack : registeredHacks.values()) {
-            boolean active = defaultHacks.contains(hack);
-            inputs.add(DialogInput.bool("hack_" + hack.getId().replace('-', '_'), Component.text("Check " + hack.getDisplayName()))
-                    .initial(active)
-                    .build());
-        }
+                .initial(configManager.isConfirmationEnabled()).build());
 
         Dialog dialog = Dialog.create(builder -> builder.empty()
-                .base(DialogBase.builder(Component.text("LovelyCheck Configuration", NamedTextColor.GOLD))
+                .base(DialogBase.builder(Component.text("⚙ General Settings", NamedTextColor.GOLD))
                         .inputs(inputs)
                         .canCloseWithEscape(true)
                         .build())
                 .type(DialogType.confirmation(
-                        ActionButton.builder(Component.text("Save", NamedTextColor.GREEN))
-                                .tooltip(Component.text("Save configuration changes"))
+                        ActionButton.builder(Component.text("Save & Next →", NamedTextColor.GREEN))
+                                .tooltip(Component.text("Save and go to Mod Check List"))
                                 .action(DialogAction.customClick((view, audience) -> {
-                                    if (audience instanceof Player p) {
-                                        boolean joinCheck = view.getBoolean("join_check") != null && view.getBoolean("join_check");
-                                        boolean punishment = view.getBoolean("punishment") != null && view.getBoolean("punishment");
-                                        boolean silent = view.getBoolean("silent") != null && view.getBoolean("silent");
-                                        boolean detectFlag = view.getBoolean("detect_flag") != null && view.getBoolean("detect_flag");
-                                        boolean doubleConfirm = view.getBoolean("double_confirm") != null && view.getBoolean("double_confirm");
+                                    if (!(audience instanceof Player p)) return;
+                                    boolean joinCheck = Boolean.TRUE.equals(view.getBoolean("join_check"));
+                                    boolean punishment = Boolean.TRUE.equals(view.getBoolean("punishment"));
+                                    boolean silent = Boolean.TRUE.equals(view.getBoolean("silent"));
+                                    boolean detectFlag = Boolean.TRUE.equals(view.getBoolean("detect_flag"));
+                                    boolean doubleConfirm = Boolean.TRUE.equals(view.getBoolean("double_confirm"));
 
-                                        plugin.getConfig().set("auto-check-on-join.enabled", joinCheck);
-                                        plugin.getConfig().set("punishment.enabled", punishment);
-                                        plugin.getConfig().set("silent-check", silent);
-                                        plugin.getConfig().set("detect-flag.enabled", detectFlag);
-                                        plugin.getConfig().set("double-confirmation.enabled", doubleConfirm);
+                                    plugin.getConfig().set("auto-check-on-join.enabled", joinCheck);
+                                    plugin.getConfig().set("punishment.enabled", punishment);
+                                    plugin.getConfig().set("silent-check", silent);
+                                    plugin.getConfig().set("detect-flag.enabled", detectFlag);
+                                    plugin.getConfig().set("double-confirmation.enabled", doubleConfirm);
+                                    plugin.saveConfig();
+                                    plugin.getConfigManager().reload();
 
-                                        List<String> enabledHacksList = new java.util.ArrayList<>();
-                                        for (String id : registeredHacks.keySet()) {
-                                            Boolean checked = view.getBoolean("hack_" + id.replace('-', '_'));
-                                            if (checked != null && checked) {
-                                                enabledHacksList.add(id);
-                                            }
-                                        }
-
-                                        plugin.getConfig().set("default-check-hacks", enabledHacksList);
-                                        plugin.getConfig().set("auto-check-on-join.hacks", enabledHacksList);
-                                        plugin.getConfig().set("detect-flag.hacks", enabledHacksList);
-
-                                        plugin.saveConfig();
-                                        plugin.getConfigManager().reload();
-
-                                        p.closeDialog();
-                                        p.sendMessage(MM.deserialize(plugin.getConfigManager().getPrefix() + "<green>Configuration updated successfully."));
-                                    }
-                                }, ClickCallback.Options.builder().uses(1).build()))
+                                    p.closeDialog();
+                                    Bukkit.getScheduler().runTaskLater(plugin, () -> openModListDialog(p), 2L);
+                                }, net.kyori.adventure.text.event.ClickCallback.Options.builder().uses(1).build()))
                                 .build(),
                         ActionButton.builder(Component.text("Cancel", NamedTextColor.RED))
-                                .tooltip(Component.text("Cancel changes"))
+                                .tooltip(Component.text("Discard changes"))
                                 .build()
                 ))
         );
 
         player.showDialog(dialog);
-        return true;
+    }
+
+    // ── Page 2: Mod Check List ────────────────────────────────────────────────
+    private void openModListDialog(Player player) {
+        ConfigManager configManager = plugin.getConfigManager();
+        Map<String, org.lovelycheck.spigot.checks.HackDefinition> registeredHacks = configManager.getHacks();
+        List<org.lovelycheck.spigot.checks.HackDefinition> defaultHacks = configManager.getDefaultLovelyCheck();
+
+        List<DialogInput> inputs = new java.util.ArrayList<>();
+        for (org.lovelycheck.spigot.checks.HackDefinition hack : registeredHacks.values()) {
+            boolean active = defaultHacks.contains(hack);
+            inputs.add(DialogInput.bool("hack_" + hack.getId().replace('-', '_'), Component.text(hack.getDisplayName()))
+                    .initial(active).build());
+        }
+
+        Dialog dialog = Dialog.create(builder -> builder.empty()
+                .base(DialogBase.builder(Component.text("🛡 Mod Check List", NamedTextColor.GOLD))
+                        .inputs(inputs)
+                        .canCloseWithEscape(true)
+                        .build())
+                .type(DialogType.confirmation(
+                        ActionButton.builder(Component.text("Save & Next →", NamedTextColor.GREEN))
+                                .tooltip(Component.text("Save and go to Add New Mod"))
+                                .action(DialogAction.customClick((view, audience) -> {
+                                    if (!(audience instanceof Player p)) return;
+
+                                    List<String> enabledHacksList = new java.util.ArrayList<>();
+                                    for (String id : registeredHacks.keySet()) {
+                                        Boolean checked = view.getBoolean("hack_" + id.replace('-', '_'));
+                                        if (Boolean.TRUE.equals(checked)) enabledHacksList.add(id);
+                                    }
+                                    plugin.getConfig().set("default-check-hacks", enabledHacksList);
+                                    plugin.getConfig().set("auto-check-on-join.hacks", enabledHacksList);
+                                    plugin.getConfig().set("detect-flag.hacks", enabledHacksList);
+                                    plugin.saveConfig();
+                                    plugin.getConfigManager().reload();
+
+                                    p.closeDialog();
+                                    Bukkit.getScheduler().runTaskLater(plugin, () -> openAddModDialog(p), 2L);
+                                }, net.kyori.adventure.text.event.ClickCallback.Options.builder().uses(1).build()))
+                                .build(),
+                        ActionButton.builder(Component.text("← Back", NamedTextColor.YELLOW))
+                                .tooltip(Component.text("Go back to General Settings"))
+                                .action(DialogAction.customClick((view, audience) -> {
+                                    if (!(audience instanceof Player p)) return;
+                                    p.closeDialog();
+                                    Bukkit.getScheduler().runTaskLater(plugin, () -> openGeneralSettingsDialog(p), 2L);
+                                }, net.kyori.adventure.text.event.ClickCallback.Options.builder().uses(1).build()))
+                                .build()
+                ))
+        );
+
+        player.showDialog(dialog);
+    }
+
+    // ── Page 3: Add New Mod ───────────────────────────────────────────────────
+    private void openAddModDialog(Player player) {
+        List<io.papermc.paper.registry.data.dialog.input.SingleOptionDialogInput.OptionEntry> modeOptions = List.of(
+                io.papermc.paper.registry.data.dialog.input.SingleOptionDialogInput.OptionEntry.create(
+                        "TRANSLATE", Component.text("TRANSLATE — translation key check"), true),
+                io.papermc.paper.registry.data.dialog.input.SingleOptionDialogInput.OptionEntry.create(
+                        "METEOR", Component.text("METEOR — Meteor Client mode"), false),
+                io.papermc.paper.registry.data.dialog.input.SingleOptionDialogInput.OptionEntry.create(
+                        "KEYBIND", Component.text("KEYBIND — keybind key check"), false)
+        );
+
+        List<DialogInput> inputs = new java.util.ArrayList<>();
+        inputs.add(DialogInput.text("new_id", Component.text("Mod ID (e.g. myCoolHack)")).build());
+        inputs.add(DialogInput.text("new_name", Component.text("Display Name (e.g. Cool Hack)")).build());
+        inputs.add(DialogInput.text("new_key", Component.text("Detection Key (translation/keybind key)")).build());
+        inputs.add(DialogInput.singleOption("new_mode", Component.text("Detection Mode"), modeOptions).build());
+
+        Dialog dialog = Dialog.create(builder -> builder.empty()
+                .base(DialogBase.builder(Component.text("➕ Add New Mod Check", NamedTextColor.GOLD))
+                        .inputs(inputs)
+                        .canCloseWithEscape(true)
+                        .build())
+                .type(DialogType.confirmation(
+                        ActionButton.builder(Component.text("Add Mod", NamedTextColor.GREEN))
+                                .tooltip(Component.text("Save new mod to config"))
+                                .action(DialogAction.customClick((view, audience) -> {
+                                    if (!(audience instanceof Player p)) return;
+
+                                    String id = view.getText("new_id");
+                                    String name = view.getText("new_name");
+                                    String key = view.getText("new_key");
+                                    String mode = view.getText("new_mode");
+
+                                    if (id == null || id.isBlank() || key == null || key.isBlank()) {
+                                        p.sendMessage(MM.deserialize(plugin.getConfigManager().getPrefix()
+                                                + "<red>Mod ID and Detection Key cannot be empty."));
+                                        return;
+                                    }
+
+                                    String safeId = id.trim().toLowerCase(java.util.Locale.ROOT)
+                                            .replaceAll("[^a-z0-9_-]", "-");
+                                    String safeName = (name == null || name.isBlank()) ? safeId : name.trim();
+                                    String safeMode = (mode == null || mode.isBlank()) ? "TRANSLATE" : mode.trim().toUpperCase(java.util.Locale.ROOT);
+
+                                    plugin.getConfig().set("hacks." + safeId + ".display-name", safeName);
+                                    plugin.getConfig().set("hacks." + safeId + ".key", key.trim());
+                                    plugin.getConfig().set("hacks." + safeId + ".mode", safeMode);
+                                    plugin.saveConfig();
+                                    plugin.getConfigManager().reload();
+
+                                    p.closeDialog();
+                                    p.sendMessage(MM.deserialize(plugin.getConfigManager().getPrefix()
+                                            + "<green>Mod <white>" + safeName + "</white> added successfully."));
+                                }, net.kyori.adventure.text.event.ClickCallback.Options.builder().uses(1).build()))
+                                .build(),
+                        ActionButton.builder(Component.text("← Back", NamedTextColor.YELLOW))
+                                .tooltip(Component.text("Go back to Mod Check List"))
+                                .action(DialogAction.customClick((view, audience) -> {
+                                    if (!(audience instanceof Player p)) return;
+                                    p.closeDialog();
+                                    Bukkit.getScheduler().runTaskLater(plugin, () -> openModListDialog(p), 2L);
+                                }, net.kyori.adventure.text.event.ClickCallback.Options.builder().uses(1).build()))
+                                .build()
+                ))
+        );
+
+        player.showDialog(dialog);
     }
 
     private void sendHelp(CommandSender sender) {

@@ -869,12 +869,14 @@ public class CheckManager {
 
     private String applyPunishmentPlaceholders(String value, String targetName, String targetUUID,
             int offense, String duration, String detections) {
-        return value
+        String result = value
                 .replace("%player%", targetName)
                 .replace("%uuid%", targetUUID)
                 .replace("%offense%", String.valueOf(offense))
                 .replace("%duration%", duration)
                 .replace("%detections%", detections);
+        // LibertyBans limits the reason column to 256 chars; stay safely under that limit
+        return result.length() > 250 ? result.substring(0, 247) + "..." : result;
     }
 
     private String compactNames(List<String> names) {
