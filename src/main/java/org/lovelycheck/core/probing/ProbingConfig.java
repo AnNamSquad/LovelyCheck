@@ -2,9 +2,8 @@ package org.lovelycheck.core.probing;
 
 import org.lovelycheck.core.LovelyCheckRegistry;
 import org.lovelycheck.core.config.Action;
+import org.lovelycheck.core.config.ConfigNode;
 import org.jetbrains.annotations.Nullable;
-import org.tomlj.TomlArray;
-import org.tomlj.TomlTable;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -23,7 +22,7 @@ public final class ProbingConfig {
     private ProbingConfig() {
     }
 
-    public static void load(@Nullable TomlTable result) {
+    public static void load(@Nullable ConfigNode result) {
         enabled = true;
         delayTicks = 40;
         signOffsetY = -5;
@@ -38,7 +37,7 @@ public final class ProbingConfig {
             enabled = enabledValue;
         }
 
-        TomlTable settings = result.getTable("settings");
+        ConfigNode settings = result.getTable("settings");
         if (settings != null) {
             Long delay = settings.getLong("delay_ticks");
             if (delay != null) {
@@ -50,11 +49,11 @@ public final class ProbingConfig {
             }
         }
 
-        TomlTable checksTable = result.getTable("checks");
+        ConfigNode checksTable = result.getTable("checks");
         if (checksTable != null) {
             List<TranslationCheck> loaded = new ArrayList<>();
             for (String key : checksTable.keySet()) {
-                TomlTable checkTable = checksTable.getTable(key);
+                ConfigNode checkTable = checksTable.getTable(key);
                 if (checkTable == null) {
                     continue;
                 }
@@ -70,7 +69,7 @@ public final class ProbingConfig {
 
                 String mode = checkTable.getString("mode");
 
-                List<Action> actions = resolveActions(checkTable.getArray("actions"));
+                List<Action> actions = resolveActions(checkTable.getList("actions"));
 
                 loaded.add(new TranslationCheck(key, name, translationKey, bypassProtection, actions, mode));
             }
@@ -78,12 +77,12 @@ public final class ProbingConfig {
         }
     }
 
-    private static List<Action> resolveActions(@Nullable TomlArray array) {
-        if (array == null) {
+    private static List<Action> resolveActions(@Nullable List<?> actionIds) {
+        if (actionIds == null) {
             return Collections.emptyList();
         }
         List<Action> actions = new ArrayList<>();
-        for (Object value : array.toList()) {
+        for (Object value : actionIds) {
             if (!(value instanceof String actionName)) {
                 continue;
             }

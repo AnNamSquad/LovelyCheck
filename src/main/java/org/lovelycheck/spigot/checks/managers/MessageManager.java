@@ -92,7 +92,7 @@ public class MessageManager {
         fallbackMessages.put("already-checking", "{prefix}<yellow>{player} <white>is already being checked.");
         fallbackMessages.put("check-started", "{prefix}<white>Starting check on <yellow>{player}<white>...");
         fallbackMessages.put("check-complete", "{prefix}<white>Check complete for <yellow>{player}<white>:");
-        fallbackMessages.put("check-timeout", "{prefix}<yellow>{player} <white>did not respond - marked as <red>PROTECTED<white>.");
+        fallbackMessages.put("check-timeout", "{prefix}<yellow>{player} <white>did not respond - marked as <gray>SKIPPED<white>.");
         fallbackMessages.put("reload-done", "{prefix}<green>Configuration reloaded.");
         fallbackMessages.put("anticheat-trigger", "{prefix}<gray>Anticheat flagged <yellow>{player}<gray>. Queuing auto-check...");
         fallbackMessages.put("join-check", "{prefix}<gray>Auto-checking <yellow>{player} <gray>on join...");

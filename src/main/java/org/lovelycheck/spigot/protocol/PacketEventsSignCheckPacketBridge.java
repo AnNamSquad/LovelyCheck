@@ -17,6 +17,7 @@ import com.github.retrooper.packetevents.util.Vector3i;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientUpdateSign;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBlockChange;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBlockEntityData;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerCloseWindow;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerOpenSignEditor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -85,7 +86,14 @@ public final class PacketEventsSignCheckPacketBridge implements SignCheckPacketB
             playerManager.sendPacket(player, new WrapperPlayServerBlockChange(position, signState));
             playerManager.sendPacket(player, new WrapperPlayServerBlockEntityData(
                     position, BlockEntityTypes.SIGN, buildSignNbt(location, batch, includeControlLine)));
-            playerManager.sendPacket(player, new WrapperPlayServerOpenSignEditor(position, true));
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (sessions.get(player.getUniqueId()) != session || !player.isOnline()) {
+                    return;
+                }
+                playerManager.sendPacket(player, new WrapperPlayServerOpenSignEditor(position, true));
+                // Keep the editor effectively invisible while still forcing an UPDATE_SIGN response.
+                playerManager.sendPacket(player, new WrapperPlayServerCloseWindow(0));
+            }, 1L);
 
             return true;
         } catch (Throwable e) {
@@ -177,11 +185,28 @@ public final class PacketEventsSignCheckPacketBridge implements SignCheckPacketB
     }
 
     private String componentJson(HackDefinition hack) {
+        if (hack.isBypassProtection()) {
+            return wrappedProbeJson(hack);
+        }
         if (hack.getMode() == DetectionMode.KEYBIND) {
             return keybindJson(hack.getKey());
         }
-        return "{\"translate\":\"" + escapeJson(hack.getKey())
-                + "\",\"fallback\":\"" + escapeJson(hack.getFallback()) + "\"}";
+        return translateJson(hack.getKey(), hack.getFallback());
+    }
+
+    private String wrappedProbeJson(HackDefinition hack) {
+        String inner = hack.getMode() == DetectionMode.KEYBIND
+                ? keybindJson(hack.getKey())
+                : translateJson(hack.getKey(), null);
+        return "{\"translate\":\"%s\",\"with\":[" + inner + "]}";
+    }
+
+    private String translateJson(String key, String fallback) {
+        String json = "{\"translate\":\"" + escapeJson(key) + "\"";
+        if (fallback != null) {
+            json += ",\"fallback\":\"" + escapeJson(fallback) + "\"";
+        }
+        return json + "}";
     }
 
     private String keybindJson(String keybind) {

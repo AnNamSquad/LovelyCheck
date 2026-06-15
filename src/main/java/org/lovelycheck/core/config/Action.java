@@ -68,7 +68,7 @@ public class Action {
         if (delayTicks >= 0) {
             return delayTicks;
         }
-        // Default to 20 ticks (1 second) if not configured in lovelycheck.toml
+        // Default to 20 ticks (1 second) if not configured in advanced.yml.
         return Config.ACTION_DELAY_TICKS.toLong(20L);
     }
 

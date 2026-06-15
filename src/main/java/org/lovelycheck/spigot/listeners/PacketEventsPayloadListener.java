@@ -35,7 +35,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * PacketEvents-based custom payload listener for Spigot/Paper/Arclight servers.
+ * PacketEvents-based custom payload listener for Paper/Purpur servers.
  */
 public class PacketEventsPayloadListener extends PacketListenerAbstract {
 
@@ -55,8 +55,7 @@ public class PacketEventsPayloadListener extends PacketListenerAbstract {
                 handlePacket(event);
             } catch (Exception e) {
                 // Never let packet processing errors disconnect the player.
-                // This can happen on hybrid servers (Arclight, Mohist) where Forge-patched
-                // classes cause reflection mismatches inside PacketEvents wrappers.
+                // Some server builds can expose payload wrappers that PacketEvents cannot decode.
                 plugin.getLogger().warning("Error processing custom payload packet: " + e.getMessage());
             }
         }

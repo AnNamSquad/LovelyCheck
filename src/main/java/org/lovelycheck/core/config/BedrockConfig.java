@@ -2,8 +2,6 @@ package org.lovelycheck.core.config;
 
 import org.lovelycheck.core.LovelyCheckRegistry;
 import org.jetbrains.annotations.Nullable;
-import org.tomlj.TomlArray;
-import org.tomlj.TomlTable;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -18,7 +16,7 @@ public final class BedrockConfig {
     private BedrockConfig() {
     }
 
-    public static void load(@Nullable TomlTable result) {
+    public static void load(@Nullable ConfigNode result) {
         enabled = false;
         label = "Bedrock";
         bedrockActions = Collections.emptyList();
@@ -37,18 +35,18 @@ public final class BedrockConfig {
             label = labelValue;
         }
 
-        TomlArray actionsArray = result.getArray("actions");
-        if (actionsArray != null) {
-            bedrockActions = resolveActions(actionsArray);
+        List<?> actionIds = result.getList("actions");
+        if (actionIds != null) {
+            bedrockActions = resolveActions(actionIds);
         }
     }
 
-    private static List<Action> resolveActions(@Nullable TomlArray array) {
-        if (array == null) {
+    private static List<Action> resolveActions(@Nullable List<?> actionIds) {
+        if (actionIds == null) {
             return Collections.emptyList();
         }
         List<Action> actions = new ArrayList<>();
-        for (Object value : array.toList()) {
+        for (Object value : actionIds) {
             if (!(value instanceof String actionName)) {
                 continue;
             }

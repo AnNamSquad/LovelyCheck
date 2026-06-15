@@ -8,7 +8,7 @@ The active probe is server-side only. No client mod is required.
 
 Minecraft clients resolve translation and keybind components before sending edited sign text back to the server. LovelyCheck uses that behavior to probe configured translation keys and keybind keys:
 
-1. A hidden sign probe is opened for the target player.
+1. A hidden virtual sign probe is opened and immediately closed for the target player.
 2. The sign contains configured translation or keybind keys.
 3. Vanilla clients normally return the fallback text or raw key.
 4. Clients that recognize a configured key may return translated text, which is treated as a detection.
@@ -27,6 +27,7 @@ LovelyCheck supports three check modes:
 - Batched sign probing with up to 4 checks per sign.
 - PacketEvents virtual sign packet flow.
 - No physical sign placement or real-sign fallback.
+- Optional `%s` wrapper probes for fingerprints that need translation-protection bypass behavior.
 - Translation shield handling with `PROTECTED` results.
 - Translation masking evidence from connection-time data.
 - Manual scans, join scans, and anticheat-triggered scans.
@@ -68,19 +69,19 @@ The default configuration includes:
 - Inventory Profiles Next
 - Tweakeroo
 
-You can add more fingerprints by adding entries under `hacks:` in `config.yml`.
+You can add more fingerprints by adding entries under `fingerprints:` in `config.yml`.
 
 Example:
 
 ```yaml
-hacks:
+fingerprints:
   example-client:
-    display-name: "Example Client"
+    label: "Example Client"
     key: "key.example.open_gui"
     mode: KEYBIND
 ```
 
-Then include the ID in `default-check-hacks`, `auto-check-on-join.hacks`, or `detect-flag.hacks`.
+Then include the ID in `scans.manual.fingerprints`, `scans.join.fingerprints`, or `scans.anticheat.fingerprints`.
 
 ## Commands
 
@@ -130,25 +131,25 @@ New installs create:
 
 ```text
 plugins/lovelycheck/config.yml
-plugins/lovelycheck/lovelycheck.toml
+plugins/lovelycheck/advanced.yml
 ```
 
-`config.yml` controls:
+`config.yml` is the main server-owner config. It controls:
 
 - Sign fingerprints.
-- Join checks.
-- Anticheat-triggered checks.
-- Discord webhooks.
-- Alert messages.
-- Punishment commands.
+- Manual, join, and anticheat-triggered scans.
+- Discord webhooks for sign detections and locale reports.
+- Alert messages shown by the sign-check layer.
+- Punishments and optional result commands.
 - Bedrock skip behavior.
-- Translation masking behavior.
+- Timeout, double-confirmation, and translation-masking behavior.
 
-`lovelycheck.toml` controls:
+`advanced.yml` is the advanced connection-detection config. It controls:
 
 - Connection-time Forge/Fabric/Lunar/generic payload checks.
-- Bedrock provider integration.
+- Connection-detection Bedrock provider actions.
 - Connection detection actions.
+- Connection-detection join webhooks.
 
 ## Detection Results
 
@@ -157,11 +158,11 @@ LovelyCheck stores and reports these result types:
 ```text
 DETECTED       The configured key resolved like an installed client/mod.
 NOT_DETECTED   The response looked vanilla-safe for that fingerprint.
-PROTECTED      The probe was blocked, timed out, or was masked by matching connection evidence.
-SKIPPED        The check did not run.
+PROTECTED      Explicit translation-shield behavior or masking evidence was observed.
+SKIPPED        The probe did not run or did not return a usable response.
 ```
 
-Direct `DETECTED` results are double-confirmed when `double-confirmation.enabled` is true.
+Direct `DETECTED` results are double-confirmed when `engine.confirmation.enabled` is true.
 
 `PROTECTED` means anti-fingerprinting behavior was observed. It does not prove which exact client or mod caused it.
 
@@ -178,20 +179,19 @@ means the client announced Fabric-related brand or plugin-channel data. It is an
 If a player then shows:
 
 ```text
-Detected 0 | Protected 25 | Clean 0 | Skipped 0
+Detected 0 | Protected 0 | Clean 0 | Skipped 20
 ```
 
-the sign probe did not receive a usable response before timeout, so all configured fingerprints were marked `PROTECTED`. This does not mean the player has 25 mods installed.
+the sign probe did not receive a usable response before timeout, so the configured fingerprints were marked `SKIPPED`. This does not mean the player has those mods installed.
 
-For normal servers, keep the first-probe timeout conservative:
+For normal servers, keep the timeout conservative:
 
 ```yaml
-shield-detection:
-  timeout-ticks: 20
-  buffer-ticks: 20
+engine:
+  timeout-ticks: 200
 ```
 
-If your server is slow, has high ping players, or PacketEvents is loading mappings on first join, increase these values.
+If your server is slow, has high ping players, or PacketEvents is loading mappings on first join, increase this value.
 
 ## Frequently Asked Questions
 
@@ -206,10 +206,11 @@ Do not promise Mio or Thunder detection unless you have tested the exact client 
 LiquidBounce is included in the default config:
 
 ```yaml
-liquidbounce:
-  display-name: "LiquidBounce"
-  key: "liquidbounce.module.killaura.name"
-  mode: TRANSLATE
+fingerprints:
+  liquidbounce:
+    label: "LiquidBounce"
+    key: "liquidbounce.module.killaura.name"
+    mode: TRANSLATE
 ```
 
 This can detect clients that expose that translation key normally. If a LiquidBounce build or addon spoofs, blocks, or masks translation responses, LovelyCheck may report `PROTECTED` or `Translation Masking Bypass` instead of a clean LiquidBounce name.
@@ -218,13 +219,14 @@ This can detect clients that expose that translation key normally. If a LiquidBo
 
 LovelyCheck detects the behavior, not always the exact mod name.
 
-If a client blocks the sign response entirely, the scan is marked `PROTECTED`. If a client makes mod probes look vanilla while connection-time evidence still matches the same mod, LovelyCheck can mark it as `Translation Masking Bypass`.
+If a client exposes explicit shield behavior in the control probe, the scan is marked `PROTECTED`. If a client makes mod probes look vanilla while connection-time evidence still matches the same mod, LovelyCheck can mark it as `Translation Masking Bypass`.
 
 By default, translation masking is not punishable:
 
 ```yaml
-detect-translation-masking:
-  punishable: false
+engine:
+  translation-masking:
+    punishable: false
 ```
 
 This is intentional. Shield evidence is useful for alerts and review, but it should be punished only after you are comfortable with your server's false-positive rate.
@@ -233,9 +235,9 @@ This is intentional. Shield evidence is useful for alerts and review, but it sho
 
 Water near the player should not cause a direct hack detection.
 
-The current engine does not place a sign block in the world. It uses PacketEvents to send a fake client-side sign block, sign NBT, open-sign-editor packet, and close-window packet. If the packet probe cannot open or the client does not answer, LovelyCheck marks the probe as `PROTECTED` instead of falling back to a real sign.
+The current engine does not place a sign block in the world. It uses PacketEvents to send a fake client-side sign block, sign NBT, open-sign-editor packet, and immediate close-window packet. If the packet probe cannot open or the client does not answer, LovelyCheck marks the probe as `SKIPPED` instead of falling back to a real sign.
 
-If the client does not answer the probe, LovelyCheck can mark the scan as `PROTECTED`, but water or lava should not turn a vanilla response into a specific mod detection.
+If the client does not answer the probe, LovelyCheck can mark the scan as `SKIPPED`, but water or lava should not turn a vanilla response into a specific mod detection.
 
 ### Suggested buyer-facing answer
 
@@ -246,15 +248,15 @@ Mio and Thunder are not guaranteed out of the box. LovelyCheck can detect them o
 
 LiquidBounce has a bundled fingerprint, but spoofed or protected builds may show as PROTECTED or Translation Masking Bypass instead of a named LiquidBounce detection.
 
-OpSec and similar translation-shield mods are handled as anti-fingerprinting behavior. The plugin can flag blocked probes as PROTECTED, but it cannot always prove the exact shield mod.
+OpSec and similar translation-shield mods are handled as anti-fingerprinting behavior when they expose explicit shield behavior. The plugin can flag those probes as PROTECTED, but it cannot always prove the exact shield mod.
 
-Water near a player should not create a direct false hack detection. The probe uses PacketEvents virtual sign packets only. A blocked or missing response may be marked PROTECTED, not as a specific client.
+Water near a player should not create a direct false hack detection. The probe uses PacketEvents virtual sign packets only. A missing response may be marked SKIPPED, not as a specific client.
 ```
 
 ## Requirements
 
 - Java 21
-- Paper, Purpur, or compatible Bukkit server for Minecraft 1.21.x
+- Paper or Purpur server for Minecraft 1.21.x
 - PacketEvents required for virtual sign packet probing
 
 Optional integrations:

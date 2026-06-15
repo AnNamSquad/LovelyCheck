@@ -4,8 +4,6 @@ version: ${projectVersion}
 author: lovelycheck
 description: lovelycheck client/mod detection plugin.
 softdepend:
-  - ViaVersion
-  - ProtocolSupport
   - packetevents
   - Geyser-Spigot
   - Floodgate

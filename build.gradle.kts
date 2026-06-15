@@ -79,7 +79,7 @@ repositories {
 }
 
 dependencies {
-    // Bukkit / Paper / Purpur / PacketEvents (Compile Only)
+    // Paper / Purpur / PacketEvents (Compile Only)
     compileOnly("org.purpurmc.purpur:purpur-api:1.21.8-R0.1-SNAPSHOT")
     compileOnly("me.clip:placeholderapi:2.11.6")
     compileOnly("com.github.retrooper:packetevents-spigot:2.11.1")

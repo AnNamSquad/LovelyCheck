@@ -8,7 +8,7 @@ import org.jetbrains.annotations.NotNull;
 import org.tomlj.Toml;
 import org.tomlj.TomlParseError;
 import org.tomlj.TomlParseResult;
-import org.tomlj.TomlTable;
+import org.yaml.snakeyaml.Yaml;
 
 import java.io.*;
 import java.net.URL;
@@ -16,13 +16,15 @@ import java.net.URLConnection;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 
 public class ConfigsManager {
 
     private static final ClassLoader classLoader = ConfigsManager.class.getClassLoader();
-    private static final String UNIFIED_CONFIG = "lovelycheck.toml";
+    private static final String ADVANCED_CONFIG = "advanced.yml";
+    private static final String LEGACY_UNIFIED_CONFIG = "lovelycheck.toml";
 
     public static void init(File folder) {
         loadConfigs(folder);
@@ -36,9 +38,12 @@ public class ConfigsManager {
     private static void loadConfigs(File folder) {
         folder.mkdirs();
         try {
-            File unifiedFile = new File(folder, UNIFIED_CONFIG);
-            if (unifiedFile.exists() || !hasLegacyConfig(folder)) {
-                loadUnifiedConfig(getConfig(UNIFIED_CONFIG, unifiedFile));
+            File advancedFile = new File(folder, ADVANCED_CONFIG);
+            File legacyUnifiedFile = new File(folder, LEGACY_UNIFIED_CONFIG);
+            if (advancedFile.exists() || (!legacyUnifiedFile.exists() && !hasLegacyConfig(folder))) {
+                loadUnifiedConfig(getConfig(ADVANCED_CONFIG, advancedFile));
+            } else if (legacyUnifiedFile.exists()) {
+                loadUnifiedConfig(getExistingTomlConfig(legacyUnifiedFile));
             } else {
                 loadLegacyConfigs(folder);
             }
@@ -47,18 +52,16 @@ public class ConfigsManager {
         }
     }
 
-    private static void loadUnifiedConfig(TomlParseResult unified) {
+    private static void loadUnifiedConfig(ConfigNode unified) {
         if (unified == null) {
             return;
         }
 
-        TomlTable coreConfig = tableOrRoot(unified, "config");
-        Config.setParseResult(coreConfig);
+        Config.setParseResult(tableOrRoot(unified, "config"));
 
         String langFile = Config.LANG_FILE.getStringOrDefault("english");
         Message.setFallbackParseResult(loadFallbackMessages(langFile));
-        TomlTable messages = tableOrEnglish(unified, "messages", langFile);
-        Message.setParseResult(messages);
+        Message.setParseResult(tableOrEnglish(unified, "messages", langFile));
 
         loadActions(unified.getTable("actions"));
         loadGenericChecks(unified.getTable("generic"));
@@ -69,25 +72,25 @@ public class ConfigsManager {
     }
 
     private static void loadLegacyConfigs(File folder) throws IOException {
-        TomlParseResult defaults = getResourceConfig(UNIFIED_CONFIG);
+        ConfigNode defaults = getResourceConfig(ADVANCED_CONFIG);
 
-        TomlParseResult legacyConfig = getExistingConfig(new File(folder, "config.toml"));
-        Config.setParseResult(legacyConfig != null ? legacyConfig : tableOrNull(defaults, "config"));
+        ConfigNode legacyConfig = getExistingTomlConfig(new File(folder, "config.toml"));
+        Config.setParseResult(legacyConfig != null ? legacyConfig : tableOrRoot(defaults, "config"));
 
         String langFile = Config.LANG_FILE.getStringOrDefault("english");
         Message.setFallbackParseResult(loadFallbackMessages(langFile));
-        TomlParseResult legacyMessages = getExistingConfig(
+        ConfigNode legacyMessages = getExistingTomlConfig(
                 new File(new File(folder, "languages"), langFile + ".toml"));
         Message.setParseResult(legacyMessages != null
                 ? legacyMessages
                 : tableOrEnglish(defaults, "messages", langFile));
 
-        loadActions(tableOrDefault(getExistingConfig(new File(folder, "actions.toml")), defaults, "actions"));
-        loadGenericChecks(tableOrDefault(getExistingConfig(new File(folder, "generic.toml")), defaults, "generic"));
-        LunarConfig.load(tableOrDefault(getExistingConfig(new File(folder, "lunar.toml")), defaults, "lunar"));
-        ForgeConfig.load(tableOrDefault(getExistingConfig(new File(folder, "forge.toml")), defaults, "forge"));
-        BedrockConfig.load(tableOrDefault(getExistingConfig(new File(folder, "bedrock.toml")), defaults, "bedrock"));
-        ProbingConfig.load(tableOrDefault(getExistingConfig(new File(folder, "probing.toml")), defaults, "probing"));
+        loadActions(tableOrDefault(getExistingTomlConfig(new File(folder, "actions.toml")), defaults, "actions"));
+        loadGenericChecks(tableOrDefault(getExistingTomlConfig(new File(folder, "generic.toml")), defaults, "generic"));
+        LunarConfig.load(tableOrDefault(getExistingTomlConfig(new File(folder, "lunar.toml")), defaults, "lunar"));
+        ForgeConfig.load(tableOrDefault(getExistingTomlConfig(new File(folder, "forge.toml")), defaults, "forge"));
+        BedrockConfig.load(tableOrDefault(getExistingTomlConfig(new File(folder, "bedrock.toml")), defaults, "bedrock"));
+        ProbingConfig.load(tableOrDefault(getExistingTomlConfig(new File(folder, "probing.toml")), defaults, "probing"));
     }
 
     private static boolean hasLegacyConfig(File folder) {
@@ -110,31 +113,20 @@ public class ConfigsManager {
         return connection.getInputStream();
     }
 
-    public static TomlParseResult getConfig(@NotNull String name, File target) throws IOException {
+    public static ConfigNode getConfig(@NotNull String name, File target) throws IOException {
         try {
             if (!target.exists()) {
                 target.getParentFile().mkdirs();
-                try (InputStream resource = getResource(name)) {
-                    if (resource == null) {
-                        throw new FileNotFoundException("Bundled config resource not found: " + name);
-                    }
-                    java.nio.file.Files.copy(
-                            resource,
-                            target.toPath(),
-                            StandardCopyOption.REPLACE_EXISTING);
-                }
+                copyResource(name, target);
             }
-            TomlParseResult result = Toml.parse(Path.of(target.toURI()));
-            for (TomlParseError error : result.errors())
-                throw new ParsingException(error.toString());
-            return result;
-        } catch (IOException | ParsingException exception) {
+            return parseYaml(new FileInputStream(target));
+        } catch (IOException | RuntimeException exception) {
             exception.printStackTrace();
             return null;
         }
     }
 
-    private static TomlParseResult getExistingConfig(File target) {
+    private static ConfigNode getExistingTomlConfig(File target) {
         if (!target.exists()) {
             return null;
         }
@@ -142,74 +134,68 @@ public class ConfigsManager {
             TomlParseResult result = Toml.parse(Path.of(target.toURI()));
             for (TomlParseError error : result.errors())
                 throw new ParsingException(error.toString());
-            return result;
+            return new TomlConfigNode(result);
         } catch (IOException | ParsingException exception) {
             exception.printStackTrace();
             return null;
         }
     }
 
-    private static TomlTable loadFallbackMessages(String langFile) {
+    private static ConfigNode loadFallbackMessages(String langFile) {
         if (langFile == null || langFile.isBlank()) {
             langFile = "english";
         }
-        TomlParseResult bundled = getResourceConfig(UNIFIED_CONFIG);
+        ConfigNode bundled = getResourceConfig(ADVANCED_CONFIG);
         if (bundled == null) {
             return null;
         }
-        TomlTable fallback = tableOrEnglish(bundled, "messages", langFile);
+        ConfigNode fallback = tableOrEnglish(bundled, "messages", langFile);
         if (fallback == null && !"english".equalsIgnoreCase(langFile)) {
             fallback = bundled.getTable("messages.english");
         }
         return fallback;
     }
 
-    private static TomlParseResult getResourceConfig(@NotNull String name) {
+    private static ConfigNode getResourceConfig(@NotNull String name) {
         try (InputStream input = getResource(name)) {
             if (input == null)
                 return null;
-            TomlParseResult result = Toml.parse(input);
-            for (TomlParseError error : result.errors())
-                throw new ParsingException(error.toString());
-            return result;
-        } catch (IOException | ParsingException exception) {
+            return parseYaml(input);
+        } catch (IOException | RuntimeException exception) {
             exception.printStackTrace();
             return null;
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private static void loadActions(TomlTable result) {
+    private static void loadActions(ConfigNode result) {
         if (result == null) {
             return;
         }
         for (String key : result.keySet()) {
-            TomlTable table = result.getTable(key);
+            ConfigNode table = result.getTable(key);
             assert table != null;
             Action action = new Action(key);
-            if (table.isString("send_alert"))
-                action.setAlert(table.getString("send_alert"));
-            if (table.isLong("delay_ticks"))
-                action.setDelayTicks(table.getLong("delay_ticks"));
+            String alert = table.getString("send_alert");
+            if (alert != null)
+                action.setAlert(alert);
+            Long delayTicks = table.getLong("delay_ticks");
+            if (delayTicks != null)
+                action.setDelayTicks(delayTicks);
             if (table.isTable("commands")) {
-                TomlTable commandsTable = table.getTable("commands");
+                ConfigNode commandsTable = table.getTable("commands");
                 assert commandsTable != null;
-                if (commandsTable.isArray("console"))
-                    action.setConsoleCommands(
-                            (List<String>) (Object) Objects.requireNonNull(commandsTable.getArray("console")).toList());
-                if (commandsTable.isArray("player"))
-                    action.setPlayerCommands(
-                            (List<String>) (Object) Objects.requireNonNull(commandsTable.getArray("player")).toList());
-                if (commandsTable.isArray("opped_player"))
-                    action.setOppedPlayerCommands((List<String>) (Object) Objects
-                            .requireNonNull(commandsTable.getArray("opped_player")).toList());
+                if (commandsTable.isList("console"))
+                    action.setConsoleCommands(toStringList(commandsTable.getList("console")));
+                if (commandsTable.isList("player"))
+                    action.setPlayerCommands(toStringList(commandsTable.getList("player")));
+                if (commandsTable.isList("opped_player"))
+                    action.setOppedPlayerCommands(toStringList(commandsTable.getList("opped_player")));
             }
             LovelyCheckRegistry.registerAction(action);
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private static void loadGenericChecks(TomlTable result) {
+    private static void loadGenericChecks(ConfigNode result) {
         if (result == null) {
             return;
         }
@@ -219,18 +205,21 @@ public class ConfigsManager {
         for (String key : result.keySet()) {
             if (!result.isTable(key))
                 continue;
-            TomlTable table = result.getTable(key);
+            ConfigNode table = result.getTable(key);
             assert table != null;
             List<Action> actions = new ArrayList<>();
-            for (Object actionName : Objects.requireNonNull(
-                    Objects.requireNonNull(table.getArray("actions")).toList())) {
-                Action action = LovelyCheckRegistry.getAction((String) actionName);
+            for (String actionName : toStringList(table.getList("actions"))) {
+                Action action = LovelyCheckRegistry.getAction(actionName);
                 if (action != null)
                     actions.add(action);
             }
+            List<String> channels = toStringList(table.getList("channels"));
+            if (channels.isEmpty()) {
+                continue;
+            }
             LovelyCheckRegistry.registerCheck(new GenericCheck(key,
                     table.getString("name"),
-                    (List<String>) (Object) table.getArray("channels").toList(),
+                    channels,
                     table.getString("message_has"),
                     table.getString("message_not_has"),
                     table.getString("category"),
@@ -238,28 +227,69 @@ public class ConfigsManager {
         }
     }
 
-    private static TomlTable tableOrRoot(TomlTable root, String path) {
-        TomlTable table = root.getTable(path);
-        return table != null ? table : root;
-    }
-
-    private static TomlTable tableOrDefault(TomlTable table, TomlTable root, String path) {
-        return table != null ? table : tableOrNull(root, path);
-    }
-
-    private static TomlTable tableOrNull(TomlTable root, String path) {
-        return root != null ? root.getTable(path) : null;
-    }
-
-    private static TomlTable tableOrEnglish(TomlTable root, String parent, String langFile) {
+    private static ConfigNode tableOrRoot(ConfigNode root, String path) {
         if (root == null) {
             return null;
         }
-        TomlTable table = root.getTable(parent + "." + langFile);
+        ConfigNode table = root.getTable(path);
+        return table != null ? table : root;
+    }
+
+    private static ConfigNode tableOrDefault(ConfigNode table, ConfigNode root, String path) {
+        return table != null ? table : tableOrNull(root, path);
+    }
+
+    private static ConfigNode tableOrNull(ConfigNode root, String path) {
+        return root != null ? root.getTable(path) : null;
+    }
+
+    private static ConfigNode tableOrEnglish(ConfigNode root, String parent, String langFile) {
+        if (root == null) {
+            return null;
+        }
+        ConfigNode table = root.getTable(parent + "." + langFile);
         if (table == null && !"english".equalsIgnoreCase(langFile)) {
             table = root.getTable(parent + ".english");
         }
         return table;
+    }
+
+    private static void copyResource(String name, File target) throws IOException {
+        try (InputStream resource = getResource(name)) {
+            if (resource == null) {
+                throw new FileNotFoundException("Bundled config resource not found: " + name);
+            }
+            java.nio.file.Files.copy(
+                    resource,
+                    target.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    private static ConfigNode parseYaml(InputStream input) throws IOException {
+        try (input) {
+            Object loaded = new Yaml().load(input);
+            if (loaded == null) {
+                return new MapConfigNode(Collections.emptyMap());
+            }
+            if (!(loaded instanceof Map<?, ?> map)) {
+                throw new IOException("YAML root must be a map");
+            }
+            return new MapConfigNode(map);
+        }
+    }
+
+    private static List<String> toStringList(List<?> values) {
+        if (values == null) {
+            return Collections.emptyList();
+        }
+        List<String> strings = new ArrayList<>();
+        for (Object value : values) {
+            if (value instanceof String string) {
+                strings.add(string);
+            }
+        }
+        return strings;
     }
 
 }

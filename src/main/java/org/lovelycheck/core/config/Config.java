@@ -1,7 +1,5 @@
 package org.lovelycheck.core.config;
 
-import org.tomlj.TomlTable;
-
 public enum Config {
 
     LANG_FILE("settings.language"),
@@ -18,9 +16,9 @@ public enum Config {
     JOIN_WEBHOOK_EMBED_COLOR("join_webhook.embed_color"),
     JOIN_WEBHOOK_EMBED_FOOTER("join_webhook.embed_footer");
 
-    private static TomlTable result;
+    private static ConfigNode result;
 
-    public static void setParseResult(TomlTable newResult) {
+    public static void setParseResult(ConfigNode newResult) {
         result = newResult;
     }
 
@@ -35,6 +33,9 @@ public enum Config {
     }
 
     public String toString() {
+        if (result == null) {
+            return null;
+        }
         return result.getString(path);
     }
 
@@ -51,6 +52,9 @@ public enum Config {
     }
 
     public boolean toBool(boolean defaultValue) {
+        if (result == null) {
+            return defaultValue;
+        }
         Boolean value = result.getBoolean(path);
         return value != null ? value : defaultValue;
     }
@@ -60,6 +64,9 @@ public enum Config {
     }
 
     public long toLong(long defaultValue) {
+        if (result == null) {
+            return defaultValue;
+        }
         Long value = result.getLong(path);
         return value != null ? value : defaultValue;
     }

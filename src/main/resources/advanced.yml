@@ -1,0 +1,403 @@
+# LovelyCheck advanced connection-detection config.
+# Most servers only need config.yml. Edit this file when you want to tune
+# login-time payload, brand, Forge, Lunar, Bedrock, or generic channel checks.
+
+settings:
+  # Message language block below.
+  language: english
+
+  # Log all CustomPayload packets. Useful only while debugging detections.
+  debug: false
+
+  # If the same payload is sent twice, only the first one triggers a check.
+  skip-duplicates: false
+
+  # Automatically download required dependencies if they are not installed.
+  # Can also be disabled via JVM property:
+  # -Dlovelycheck.autoDownloadDependencies=false
+  auto-download-dependencies: true
+
+  # Delay in ticks before executing connection-detection actions.
+  action-delay-ticks: 20
+
+join-webhook:
+  enabled: false
+  url: ""
+  content: ""
+  embed-title: "Player Joined"
+  embed-description: "Player {player} has joined the server."
+  embed-color: 65280
+  embed-footer: "lovelycheck"
+
+messages:
+  english:
+    general:
+      prefix: "<gradient:#2F80ED:#FFCAC9>lovelycheck <#282B3F>| "
+
+    logs:
+      loaded: "<prefix><#55ffa4>Successfully enabled"
+      debug-message: "<#93291E>LC-Debug <#282B3F>| <#facc43><player> <#b8bbc2>channel<#6f737d>: \"<#facc43><channel><#6f737d>\", <#b8bbc2>message<#6f737d>: \"<#facc43><message><#6f737d>\""
+
+    commands:
+      help: |-
+        <prefix><#b8bbc2>Available commands
+        <#6f737d>/lc <#b8bbc2>reload <#6f737d>-><#b8bbc2> reload the plugin<reset>
+        <#6f737d>/lc <#b8bbc2>check <#43c9fa>target <#6f737d>-><#b8bbc2> check player detected mods<reset>
+        <#6f737d>/lc <#b8bbc2>list <#6f737d>-><#b8bbc2> list all spotted players<reset>
+      help-spigot: |-
+        <prefix><#b8bbc2>Available commands
+        <#6f737d>/lc <#b8bbc2>reload <#6f737d>-><#b8bbc2> reload the plugin<reset>
+        <#6f737d>/lc <#b8bbc2>check <#43c9fa>target <#6f737d>-><#b8bbc2> check player detected mods<reset>
+        <#6f737d>/lc <#b8bbc2>list <#6f737d>-><#b8bbc2> list all spotted players<reset>
+      reload-success: "<prefix><#55ffa4>Successfully reloaded"
+      check-no-mods: "<prefix><#55ffa4> No mods detected"
+      check-mods: "<prefix><#55ffa4> Detected mods:"
+      mod-list-format: "<#6f737d>- <#facc43><mod>"
+      check-lunar-mods: "<prefix><#55ffa4> Lunar Client mods:"
+      check-lunar-no-mods: "<prefix><#55ffa4> No Lunar Client mods detected"
+      lunar-mod-list-format: "<#6f737d>- <#facc43><mod>"
+      check-forge-mods: "<prefix><#55ffa4> Forge/NeoForge mods:"
+      check-forge-no-mods: "<prefix><#55ffa4> No Forge mods detected"
+      forge-mod-list-format: "<#6f737d>- <mod>"
+      check-players: "<prefix><#55ffa4> Spotted players:"
+      check-players-empty: "<prefix><#55ffa4> No players spotted"
+      player-list-format: "<#6f737d>- <#facc43><player>"
+
+actions:
+  # Actions are reusable responses. Checks below reference them by ID.
+  alert:
+    send-alert: "<red><player> <gray>just logged in using <red><name><gray> !"
+    commands:
+      console: []
+      player: []
+      opped-player: []
+
+  # Example kick action:
+  # kick:
+  #   send-alert: "<red><player> <gray>was kicked for using <red><name><gray> !"
+  #   commands:
+  #     console:
+  #       - "kick <player> You are not allowed to use <name>"
+
+generic:
+  # Generic payload checks look at brand/plugin-channel data sent during login.
+  enabled: true
+
+  labymod_v1:
+    actions: [alert]
+    channels: [LABYMOD]
+    name: "Labymod v1"
+    category: client
+
+  labymod_v2:
+    actions: [alert]
+    channels: [LMC]
+    name: "Labymod v2"
+    category: client
+
+  labymod_v3:
+    actions: [alert]
+    channels: ["labymod3:main"]
+    name: "Labymod v3"
+    category: client
+
+  "5_zig_mod":
+    actions: [alert]
+    channels: [5zig_Set]
+    name: "5zig Mod"
+    category: client
+
+  px_mod:
+    actions: [alert]
+    channels: ["PX|Version"]
+    name: "PX Mod"
+    category: mod
+
+  better_sprinting:
+    actions: [alert]
+    channels: [BSprint]
+    name: "Better Sprinting"
+    category: mod
+
+  hyperium:
+    actions: [alert]
+    channels: [hyperium]
+    name: "Hyperium"
+    category: client
+
+  journeymap:
+    actions: [alert]
+    channels: [journeymap_channel]
+    name: "JourneyMap"
+    category: mod
+
+  remix:
+    actions: [alert]
+    channels: ["BLC|M"]
+    name: "Remix"
+    category: client
+
+  waila:
+    actions: [alert]
+    channels: [waila]
+    name: "Waila"
+    category: mod
+
+  winterware:
+    actions: [alert]
+    channels: ["LC|Brand"]
+    name: "Winterware"
+    category: client
+
+  forge_mod_loader_v1:
+    actions: [alert]
+    channels: [REGISTER, "minecraft:register"]
+    message-has: "legacy:fml"
+    name: "Legacy Forge Mod Loader"
+    category: loader
+
+  forge_mod_loader_v2:
+    actions: [alert]
+    channels: ["FML|HS", "l:fmlhs"]
+    name: "Forge Mod Loader"
+    category: loader
+
+  world_downloader_v1:
+    actions: [alert]
+    channels: [REGISTER, "minecraft:register"]
+    message-has: wdl
+    name: "World Downloader"
+    category: mod
+
+  world_downloader_v2:
+    actions: [alert]
+    channels: ["MC|Brand", "minecraft:brand"]
+    message-has: WorldDownloader
+    name: "World Downloader"
+    category: mod
+
+  world_downloader_v3:
+    actions: [alert]
+    channels: ["WDL|INIT"]
+    name: "World Downloader"
+    category: mod
+
+  world_downloader_v4:
+    actions: [alert]
+    channels: ["WDL|CONTROL"]
+    message-has: WDL
+    name: "World Downloader"
+    category: mod
+
+  emc:
+    actions: [alert]
+    channels: ["MC|Brand", "minecraft:brand"]
+    message-has: Subsystem
+    name: "Easy Minecraft Client"
+    category: client
+
+  liteloader:
+    actions: [alert]
+    channels: ["MC|Brand", "minecraft:brand"]
+    message-has: LiteLoader
+    name: "LiteLoader"
+    category: loader
+
+  fabric:
+    actions: [alert]
+    channels: ["MC|Brand", "minecraft:brand"]
+    message-has: fabric
+    name: "Fabric"
+    category: loader
+
+  forge:
+    actions: [alert]
+    channels: ["MC|Brand", "minecraft:brand"]
+    message-has: forge
+    message-not-has: neoforge
+    name: "Forge"
+    category: loader
+
+  neoforge:
+    actions: [alert]
+    channels: ["MC|Brand", "minecraft:brand"]
+    message-has: neoforge
+    name: "NeoForge"
+    category: loader
+
+  lunar_client:
+    actions: [alert]
+    channels: ["MC|Brand", "minecraft:brand"]
+    message-has: lunarclient
+    name: "Lunar Client"
+    category: client
+
+  feather_client:
+    actions: [alert]
+    channels: ["MC|Brand", "minecraft:brand"]
+    message-has: feather
+    name: "Feather Client"
+    category: client
+
+  pvp_lounge:
+    actions: [alert]
+    channels: ["MC|Brand", "minecraft:brand"]
+    message-has: PLC18
+    name: "PvPLounge Client"
+    category: client
+
+  meteor_client:
+    actions: [alert]
+    channels: [REGISTER, "minecraft:register"]
+    message-has: meteor-client
+    name: "Meteor Client"
+    category: client
+
+  cracked_vape:
+    actions: [alert]
+    channels: [LOLIMAHCKER]
+    name: "Cracked Vape"
+    category: client
+
+  xaero_minimap:
+    actions: [alert]
+    channels: [XaeroMinimap]
+    name: "XaeroMinimap"
+    category: mod
+
+  inventory_tweaks:
+    actions: [alert]
+    channels: [InventoryTweaks]
+    name: "InventoryTweaks"
+    category: mod
+
+  inventory_profiles_next:
+    actions: [alert]
+    channels: [REGISTER, "minecraft:register"]
+    message-has: inventoryprofilesnext
+    name: "Inventory Profiles Next"
+    category: mod
+
+  world_edit_cui:
+    actions: [alert]
+    channels: [WECUI]
+    name: "World Edit CUI"
+    category: mod
+
+  optifine:
+    actions: [alert]
+    channels: ["MC|Brand", "minecraft:brand"]
+    message-has: optifine
+    name: "Optifine"
+    category: mod
+
+  badlion_client:
+    actions: [alert]
+    channels: ["MC|Brand", "minecraft:brand"]
+    message-has: badlion
+    name: "Badlion Client"
+    category: client
+
+lunar:
+  # Lunar Client Apollo handshake settings.
+  enabled: true
+
+  settings:
+    mark-lunar-client: true
+    mark-fabric: true
+    mark-forge: true
+    show-mods-in-check: true
+    show-mod-versions: false
+    show-mod-types: false
+
+  actions:
+    lunar-client: []
+    fabric: []
+    forge: []
+
+  mod-actions:
+    tweakeroo: [alert]
+
+forge:
+  # Forge / NeoForge / Fabric mod-list settings.
+  enabled: true
+
+  settings:
+    mark-forge: true
+    mark-neoforge: true
+    show-mods-in-check: true
+    show-mod-versions: false
+
+  actions:
+    forge: []
+    neoforge: []
+
+  mod-actions:
+    inventoryprofilesnext: [alert]
+    tweakeroo: [alert]
+
+  category:
+    whitelisted:
+      color: "<green>"
+      mods:
+        - betterfoliage
+        - sodium
+        - iris
+        - optifine
+        - rubidium
+        - oculus
+        - embeddium
+
+    blacklisted:
+      color: "<red>"
+      mods:
+        - forgewurst
+        - forgehax
+        - wurst
+        - baritone
+        - meteor
+        - meteor-client
+        - inventoryprofilesnext
+        - aristois
+        - impact
+        - tweakeroo
+
+  spoofing:
+    enabled: true
+    actions: [alert]
+
+bedrock:
+  # Bedrock integration for the connection-detection layer.
+  enabled: false
+  label: "Bedrock"
+  actions: []
+
+probing:
+  # Optional legacy core sign probing. Most servers should use config.yml sign checks instead.
+  enabled: false
+
+  settings:
+    delay-ticks: 40
+    sign-offset-y: -5
+
+  checks:
+    meteor_client:
+      name: "Meteor Client"
+      translation-key: "key.meteor-client.open-gui"
+      mode: keybind
+      actions: [alert]
+
+    wurst:
+      name: "Wurst Client"
+      translation-key: "key.wurst.zoom"
+      actions: [alert]
+
+    freecam:
+      name: "Freecam"
+      translation-key: "key.freecam.toggle"
+      actions: [alert]
+
+    tweakeroo:
+      name: "Tweakeroo"
+      translation-key: "tweakeroo.config.hotkey.name.openConfigGui"
+      actions: [alert]

@@ -7,7 +7,6 @@ import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.jetbrains.annotations.NotNull;
-import org.tomlj.TomlTable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,14 +34,14 @@ public enum Message {
     CHECK_PLAYERS_EMPTY("commands.check_players_empty"),
     PLAYER_LIST_FORMAT("commands.player_list_format");
 
-    private static TomlTable result;
-    private static TomlTable fallbackResult;
+    private static ConfigNode result;
+    private static ConfigNode fallbackResult;
 
-    public static void setParseResult(TomlTable newResult) {
+    public static void setParseResult(ConfigNode newResult) {
         result = newResult;
     }
 
-    public static void setFallbackParseResult(TomlTable newResult) {
+    public static void setFallbackParseResult(ConfigNode newResult) {
         fallbackResult = newResult;
     }
 

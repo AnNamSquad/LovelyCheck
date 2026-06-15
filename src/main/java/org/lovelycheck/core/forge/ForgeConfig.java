@@ -2,9 +2,8 @@ package org.lovelycheck.core.forge;
 
 import org.lovelycheck.core.LovelyCheckRegistry;
 import org.lovelycheck.core.config.Action;
+import org.lovelycheck.core.config.ConfigNode;
 import org.jetbrains.annotations.Nullable;
-import org.tomlj.TomlArray;
-import org.tomlj.TomlTable;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,7 +37,7 @@ public final class ForgeConfig {
     private ForgeConfig() {
     }
 
-    public static void load(@Nullable TomlTable result) {
+    public static void load(@Nullable ConfigNode result) {
         enabled = true;
         markForge = true;
         markNeoForge = true;
@@ -63,7 +62,7 @@ public final class ForgeConfig {
             enabled = enabledValue;
         }
 
-        TomlTable settings = result.getTable("settings");
+        ConfigNode settings = result.getTable("settings");
         if (settings != null) {
             markForge = getBoolean(settings, "mark_forge", markForge);
             markNeoForge = getBoolean(settings, "mark_neoforge", markNeoForge);
@@ -71,21 +70,21 @@ public final class ForgeConfig {
             showModVersions = getBoolean(settings, "show_mod_versions", showModVersions);
         }
 
-        TomlTable actionsTable = result.getTable("actions");
+        ConfigNode actionsTable = result.getTable("actions");
         if (actionsTable != null) {
-            forgeActions = resolveActions(actionsTable.getArray("forge"));
-            neoforgeActions = resolveActions(actionsTable.getArray("neoforge"));
+            forgeActions = resolveActions(actionsTable.getList("forge"));
+            neoforgeActions = resolveActions(actionsTable.getList("neoforge"));
         }
 
-        TomlTable modActionsTable = result.getTable("mod_actions");
+        ConfigNode modActionsTable = result.getTable("mod_actions");
         if (modActionsTable != null) {
             Map<String, List<Action>> resolved = new HashMap<>();
             for (String key : modActionsTable.keySet()) {
-                TomlArray array = modActionsTable.getArray(key);
-                if (array == null) {
+                List<?> actionIds = modActionsTable.getList(key);
+                if (actionIds == null) {
                     continue;
                 }
-                List<Action> actions = resolveActions(array);
+                List<Action> actions = resolveActions(actionIds);
                 if (!actions.isEmpty()) {
                     resolved.put(normalizeModId(key), actions);
                 }
@@ -93,45 +92,45 @@ public final class ForgeConfig {
             modActions = resolved;
         }
 
-        TomlTable categoryTable = result.getTable("category");
+        ConfigNode categoryTable = result.getTable("category");
         if (categoryTable != null) {
-            TomlTable whitelistTable = categoryTable.getTable("whitelisted");
+            ConfigNode whitelistTable = categoryTable.getTable("whitelisted");
             if (whitelistTable != null) {
                 String color = whitelistTable.getString("color");
                 if (color != null) {
                     whitelistedColor = color;
                 }
-                whitelistedMods = parseModList(whitelistTable.getArray("mods"));
+                whitelistedMods = parseModList(whitelistTable.getList("mods"));
             }
 
-            TomlTable blacklistTable = categoryTable.getTable("blacklisted");
+            ConfigNode blacklistTable = categoryTable.getTable("blacklisted");
             if (blacklistTable != null) {
                 String color = blacklistTable.getString("color");
                 if (color != null) {
                     blacklistedColor = color;
                 }
-                blacklistedMods = parseModList(blacklistTable.getArray("mods"));
+                blacklistedMods = parseModList(blacklistTable.getList("mods"));
             }
         }
 
-        TomlTable spoofingTable = result.getTable("spoofing");
+        ConfigNode spoofingTable = result.getTable("spoofing");
         if (spoofingTable != null) {
             spoofingEnabled = getBoolean(spoofingTable, "enabled", spoofingEnabled);
-            spoofingActions = resolveActions(spoofingTable.getArray("actions"));
+            spoofingActions = resolveActions(spoofingTable.getList("actions"));
         }
     }
 
-    private static boolean getBoolean(TomlTable table, String key, boolean defaultValue) {
+    private static boolean getBoolean(ConfigNode table, String key, boolean defaultValue) {
         Boolean value = table.getBoolean(key);
         return value != null ? value : defaultValue;
     }
 
-    private static List<Action> resolveActions(@Nullable TomlArray array) {
-        if (array == null) {
+    private static List<Action> resolveActions(@Nullable List<?> actionIds) {
+        if (actionIds == null) {
             return Collections.emptyList();
         }
         List<Action> actions = new ArrayList<>();
-        for (Object value : array.toList()) {
+        for (Object value : actionIds) {
             if (!(value instanceof String actionName)) {
                 continue;
             }
@@ -143,12 +142,12 @@ public final class ForgeConfig {
         return Collections.unmodifiableList(actions);
     }
 
-    private static Set<String> parseModList(@Nullable TomlArray array) {
-        if (array == null) {
+    private static Set<String> parseModList(@Nullable List<?> modIds) {
+        if (modIds == null) {
             return Collections.emptySet();
         }
         Set<String> mods = new HashSet<>();
-        for (Object value : array.toList()) {
+        for (Object value : modIds) {
             if (value instanceof String modId) {
                 mods.add(normalizeModId(modId));
             }

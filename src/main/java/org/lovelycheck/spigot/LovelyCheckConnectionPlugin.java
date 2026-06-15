@@ -92,7 +92,7 @@ public class LovelyCheckConnectionPlugin extends JavaPlugin {
                 getLogger().warning("Please restart your server to enable lovelycheck functionality.");
             } else if (!LovelyCheckHopper.isEnabled()) {
                 getLogger().warning("PacketEvents is not installed and auto-download is disabled.");
-                getLogger().warning("Please install one manually or enable auto_download_dependencies in lovelycheck.toml");
+                getLogger().warning("Please install one manually or enable settings.auto-download-dependencies in advanced.yml");
             } else {
                 getLogger().severe("PacketEvents is not available! lovelycheck packet detection will be disabled.");
                 getLogger().severe("Please install PacketEvents manually.");

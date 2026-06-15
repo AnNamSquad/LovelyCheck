@@ -170,11 +170,11 @@ public final class LovelyCheckerCommand implements CommandExecutor, TabCompleter
                                     boolean detectFlag = Boolean.TRUE.equals(view.getBoolean("detect_flag"));
                                     boolean doubleConfirm = Boolean.TRUE.equals(view.getBoolean("double_confirm"));
 
-                                    plugin.getConfig().set("auto-check-on-join.enabled", joinCheck);
-                                    plugin.getConfig().set("punishment.enabled", punishment);
-                                    plugin.getConfig().set("silent-check", silent);
-                                    plugin.getConfig().set("detect-flag.enabled", detectFlag);
-                                    plugin.getConfig().set("double-confirmation.enabled", doubleConfirm);
+                                    plugin.getConfig().set("scans.join.enabled", joinCheck);
+                                    plugin.getConfig().set("enforcement.punishment.enabled", punishment);
+                                    plugin.getConfig().set("general.silent-check", silent);
+                                    plugin.getConfig().set("scans.anticheat.enabled", detectFlag);
+                                    plugin.getConfig().set("engine.confirmation.enabled", doubleConfirm);
                                     plugin.saveConfig();
                                     plugin.getConfigManager().reload();
 
@@ -220,9 +220,9 @@ public final class LovelyCheckerCommand implements CommandExecutor, TabCompleter
                                         Boolean checked = view.getBoolean("hack_" + id.replace('-', '_'));
                                         if (Boolean.TRUE.equals(checked)) enabledHacksList.add(id);
                                     }
-                                    plugin.getConfig().set("default-check-hacks", enabledHacksList);
-                                    plugin.getConfig().set("auto-check-on-join.hacks", enabledHacksList);
-                                    plugin.getConfig().set("detect-flag.hacks", enabledHacksList);
+                                    plugin.getConfig().set("scans.manual.fingerprints", enabledHacksList);
+                                    plugin.getConfig().set("scans.join.fingerprints", enabledHacksList);
+                                    plugin.getConfig().set("scans.anticheat.fingerprints", enabledHacksList);
                                     plugin.saveConfig();
                                     plugin.getConfigManager().reload();
 
@@ -286,18 +286,18 @@ public final class LovelyCheckerCommand implements CommandExecutor, TabCompleter
                                     String safeName = (name == null || name.isBlank()) ? safeId : name.trim();
                                     String safeMode = (mode == null || mode.isBlank()) ? "TRANSLATE" : mode.trim().toUpperCase(Locale.ROOT);
 
-                                    plugin.getConfig().set("hacks." + safeId + ".display-name", safeName);
-                                    plugin.getConfig().set("hacks." + safeId + ".key",          key.trim());
-                                    plugin.getConfig().set("hacks." + safeId + ".mode",         safeMode);
+                                    plugin.getConfig().set("fingerprints." + safeId + ".label", safeName);
+                                    plugin.getConfig().set("fingerprints." + safeId + ".key",   key.trim());
+                                    plugin.getConfig().set("fingerprints." + safeId + ".mode",  safeMode);
 
                                     if (enableNow) {
-                                        List<String> defaults = new ArrayList<>(plugin.getConfig().getStringList("default-check-hacks"));
+                                        List<String> defaults = new ArrayList<>(plugin.getConfig().getStringList("scans.manual.fingerprints"));
                                         if (!defaults.contains(safeId)) defaults.add(safeId);
-                                        plugin.getConfig().set("default-check-hacks", defaults);
+                                        plugin.getConfig().set("scans.manual.fingerprints", defaults);
 
-                                        List<String> joinHacks = new ArrayList<>(plugin.getConfig().getStringList("auto-check-on-join.hacks"));
+                                        List<String> joinHacks = new ArrayList<>(plugin.getConfig().getStringList("scans.join.fingerprints"));
                                         if (!joinHacks.contains(safeId)) joinHacks.add(safeId);
-                                        plugin.getConfig().set("auto-check-on-join.hacks", joinHacks);
+                                        plugin.getConfig().set("scans.join.fingerprints", joinHacks);
                                     }
 
                                     plugin.saveConfig();

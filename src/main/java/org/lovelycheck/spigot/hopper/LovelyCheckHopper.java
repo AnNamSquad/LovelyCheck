@@ -174,8 +174,7 @@ public final class LovelyCheckHopper {
     }
 
     /**
-     * Gets the plugins folder in a way that's compatible with both Paper and Spigot/Arclight.
-     * Paper has Bukkit.getPluginsFolder(), but Spigot/Arclight don't have this method.
+     * Gets the plugins folder in a way that's compatible with Paper/Purpur and older Bukkit APIs.
      *
      * @return the plugins folder, or null if it cannot be determined
      */

@@ -30,7 +30,9 @@ public class ConfigManager {
         masterConfig = plugin.getConfig();
         hacksConfig = masterConfig;
         File legacyChecks = new File(plugin.getDataFolder(), "checks.yml");
-        if (!masterConfig.isConfigurationSection("hacks") && legacyChecks.exists()) {
+        if (!masterConfig.isConfigurationSection("fingerprints")
+                && !masterConfig.isConfigurationSection("hacks")
+                && legacyChecks.exists()) {
             hacksConfig = YamlConfiguration.loadConfiguration(legacyChecks);
             plugin.getLogger().warning("Loaded legacy checks.yml. Move those settings into config.yml to use the unified config.");
         }
@@ -40,56 +42,80 @@ public class ConfigManager {
 
     private void loadHacks() {
         hacks.clear();
-        ConfigurationSection section = hacksConfig.getConfigurationSection("hacks");
+        ConfigurationSection section = getSection(hacksConfig, "fingerprints", "hacks");
         if (section == null) return;
         for (String id : section.getKeys(false)) {
-            String displayName = section.getString(id + ".display-name", id);
+            String displayName = getString(section, id, id + ".display-name", id + ".label");
             String key = section.getString(id + ".key", "");
             if (key.isBlank()) continue;
             DetectionMode mode;
             try {
                 mode = DetectionMode.valueOf(
-                        section.getString(id + ".mode", "TRANSLATE").toUpperCase());
+                        getString(section, "TRANSLATE", id + ".mode", id + ".type").toUpperCase());
             } catch (IllegalArgumentException e) {
                 mode = DetectionMode.TRANSLATE;
             }
-            hacks.put(id, new HackDefinition(id, displayName, key, mode));
+            boolean bypassProtection = getBoolean(section, false,
+                    id + ".bypass-protection", id + ".bypass_protection");
+            hacks.put(id, new HackDefinition(id, displayName, key, mode, bypassProtection));
         }
-        plugin.getLogger().info("Loaded " + hacks.size() + " hacks.");
+        plugin.getLogger().info("Loaded " + hacks.size() + " fingerprints.");
     }
 
     public Map<String, HackDefinition> getHacks()     { return hacks; }
     public HackDefinition getHack(String id)           { return hacks.get(id); }
 
-    public List<HackDefinition> getDefaultLovelyCheck() { return resolveHackList("default-check-hacks"); }
-    public List<HackDefinition> getJoinLovelyCheck()    { return resolveHackList("auto-check-on-join.hacks"); }
-    public List<HackDefinition> getFlagLovelyCheck()    { return resolveHackList("detect-flag.hacks"); }
+    public List<HackDefinition> getDefaultLovelyCheck() {
+        return resolveHackList("scans.manual.fingerprints", "scans.manual.default-fingerprints", "default-check-hacks");
+    }
+    public List<HackDefinition> getJoinLovelyCheck() {
+        return resolveHackList("scans.join.fingerprints", "auto-check-on-join.hacks");
+    }
+    public List<HackDefinition> getFlagLovelyCheck() {
+        return resolveHackList("scans.anticheat.fingerprints", "detect-flag.hacks");
+    }
 
-    private List<HackDefinition> resolveHackList(String path) {
+    private List<HackDefinition> resolveHackList(String... paths) {
         List<HackDefinition> result = new ArrayList<>();
-        for (String id : hacksConfig.getStringList(path)) {
+        for (String id : getStringList(hacksConfig, paths)) {
             HackDefinition h = hacks.get(id);
             if (h != null) result.add(h);
         }
         return result;
     }
 
-    public String getPrefix()    { return masterConfig.getString("prefix", "<yellow>[lovelycheck] <gray>"); }
-    public String getLanguage()  { return masterConfig.getString("language", "en"); }
+    public String getPrefix() {
+        return getString(masterConfig, "<yellow>[lovelycheck] <gray>", "general.prefix", "prefix");
+    }
+    public String getLanguage() {
+        return getString(masterConfig, "en", "general.language", "language");
+    }
 
-    public boolean isDiscordEnabled()   { return masterConfig.getBoolean("discord.enabled", false); }
-    public String  getWebhookUrl()      { return masterConfig.getString("discord.webhook-url", ""); }
-    public int     getEmbedColor()      { return masterConfig.getInt("discord.embed-color", 16776960); }
-    public String  getDiscordMessage()  { return masterConfig.getString("discord.message", ""); }
+    public boolean isDiscordEnabled() {
+        return getBoolean(masterConfig, false, "webhooks.detection.enabled", "discord.enabled");
+    }
+    public String getWebhookUrl() {
+        return getString(masterConfig, "", "webhooks.detection.url", "webhooks.detection.webhook-url", "discord.webhook-url");
+    }
+    public int getEmbedColor() {
+        return getInt(masterConfig, 16776960, "webhooks.detection.embed-color", "discord.embed-color");
+    }
+    public String getDiscordMessage() {
+        return getString(masterConfig, "", "webhooks.detection.message", "discord.message");
+    }
 
-    public boolean isBedrockEnabled()        { return masterConfig.getBoolean("bedrock.enabled", true); }
-    public List<String> getBedrockPrefixes() { return masterConfig.getStringList("bedrock.prefixes"); }
+    public boolean isBedrockEnabled()        { return getBoolean(masterConfig, true, "bedrock.enabled"); }
+    public List<String> getBedrockPrefixes() { return getStringList(masterConfig, "bedrock.prefixes"); }
 
-    public boolean isCommandIfPositiveEnabled() { return hacksConfig.getBoolean("command-if-positive.enabled", false); }
-    public String  getPositiveCommand()         { return hacksConfig.getString("command-if-positive.command", ""); }
+    public boolean isCommandIfPositiveEnabled() {
+        return getBoolean(hacksConfig, false, "enforcement.commands.detected.enabled", "command-if-positive.enabled");
+    }
+    public String getPositiveCommand() {
+        return getString(hacksConfig, "", "enforcement.commands.detected.command", "command-if-positive.command");
+    }
 
     public boolean isPunishmentEnabled() {
-        return getPunishmentBoolean("enabled", true);
+        return getPunishmentBoolean("enabled", false);
     }
 
 
@@ -110,7 +136,8 @@ public class ConfigManager {
     }
 
     public List<String> getPunishmentDurations() {
-        List<String> durations = new ArrayList<>(hacksConfig.getStringList("punishment.durations"));
+        List<String> durations = new ArrayList<>(getStringList(hacksConfig,
+                "enforcement.punishment.durations", "punishment.durations"));
         if (durations.isEmpty()) {
             durations.addAll(hacksConfig.getStringList("punishments.durations"));
         }
@@ -118,7 +145,8 @@ public class ConfigManager {
             return durations;
         }
 
-        ConfigurationSection section = hacksConfig.getConfigurationSection("punishment.durations");
+        ConfigurationSection section = getSection(hacksConfig,
+                "enforcement.punishment.durations", "punishment.durations");
         if (section == null) {
             section = hacksConfig.getConfigurationSection("punishments.durations");
         }
@@ -134,61 +162,73 @@ public class ConfigManager {
         return durations.isEmpty() ? DEFAULT_PUNISHMENT_DURATIONS : durations;
     }
 
-    public boolean isCommandIfProtectedEnabled() { return hacksConfig.getBoolean("command-if-protected.enabled", false); }
-    public String  getProtectedCommand()         { return hacksConfig.getString("command-if-protected.command", ""); }
+    public boolean isCommandIfProtectedEnabled() {
+        return getBoolean(hacksConfig, false, "enforcement.commands.protected.enabled", "command-if-protected.enabled");
+    }
+    public String getProtectedCommand() {
+        return getString(hacksConfig, "", "enforcement.commands.protected.command", "command-if-protected.command");
+    }
 
-    public boolean isCommandIfCleanEnabled() { return hacksConfig.getBoolean("command-if-clean.enabled", false); }
-    public String  getCleanCommand()         { return hacksConfig.getString("command-if-clean.command", ""); }
+    public boolean isCommandIfCleanEnabled() {
+        return getBoolean(hacksConfig, false, "enforcement.commands.clean.enabled", "command-if-clean.enabled");
+    }
+    public String getCleanCommand() {
+        return getString(hacksConfig, "", "enforcement.commands.clean.command", "command-if-clean.command");
+    }
 
-    public boolean isDetectFlagEnabled() { return hacksConfig.getBoolean("detect-flag.enabled", false); }
-    public boolean isGrimEnabled()       { return hacksConfig.getBoolean("detect-flag.anticheats.grim", true); }
-    public boolean isVulcanEnabled()     { return hacksConfig.getBoolean("detect-flag.anticheats.vulcan", true); }
-    public boolean isSpartanEnabled()    { return hacksConfig.getBoolean("detect-flag.anticheats.spartan", true); }
-    public long    getFlagCooldownHours(){ return hacksConfig.getLong("detect-flag.cooldown-hours", 24); }
+    public boolean isDetectFlagEnabled() { return getBoolean(hacksConfig, false, "scans.anticheat.enabled", "detect-flag.enabled"); }
+    public boolean isGrimEnabled()       { return getBoolean(hacksConfig, true, "scans.anticheat.integrations.grim", "detect-flag.anticheats.grim"); }
+    public boolean isVulcanEnabled()     { return getBoolean(hacksConfig, true, "scans.anticheat.integrations.vulcan", "detect-flag.anticheats.vulcan"); }
+    public boolean isSpartanEnabled()    { return getBoolean(hacksConfig, true, "scans.anticheat.integrations.spartan", "detect-flag.anticheats.spartan"); }
+    public long    getFlagCooldownHours(){ return getLong(hacksConfig, 24, "scans.anticheat.cooldown-hours", "detect-flag.cooldown-hours"); }
 
-    public boolean isJoinCheckEnabled()  { return hacksConfig.getBoolean("auto-check-on-join.enabled", false); }
-    public boolean isOnlyFirstJoin()     { return hacksConfig.getBoolean("auto-check-on-join.only-first-join", false); }
-    public long getJoinCheckDelayTicks() { return hacksConfig.getLong("auto-check-on-join.delay-ticks", 40L); }
+    public boolean isJoinCheckEnabled()  { return getBoolean(hacksConfig, false, "scans.join.enabled", "auto-check-on-join.enabled"); }
+    public boolean isOnlyFirstJoin()     { return getBoolean(hacksConfig, false, "scans.join.only-first-join", "auto-check-on-join.only-first-join"); }
+    public long getJoinCheckDelayTicks() { return getLong(hacksConfig, 40L, "scans.join.delay-ticks", "auto-check-on-join.delay-ticks"); }
 
-    public boolean isSilentCheck() { return hacksConfig.getBoolean("silent-check", false); }
+    public boolean isSilentCheck() { return getBoolean(hacksConfig, false, "general.silent-check", "silent-check"); }
     public boolean isDetectTranslationMaskingEnabled() {
-        return hacksConfig.getBoolean("detect-translation-masking.enabled", true);
+        return getBoolean(hacksConfig, true, "engine.translation-masking.enabled", "detect-translation-masking.enabled");
     }
     public int getTranslationMaskingMinimumChecks() {
-        return Math.max(1, hacksConfig.getInt("detect-translation-masking.minimum-checks", 1));
+        return Math.max(1, getInt(hacksConfig, 1, "engine.translation-masking.minimum-checks", "detect-translation-masking.minimum-checks"));
     }
     public boolean isTranslationMaskingPunishable() {
-        return hacksConfig.getBoolean("detect-translation-masking.punishable", false);
+        return getBoolean(hacksConfig, false, "engine.translation-masking.punishable", "detect-translation-masking.punishable");
     }
     public String getTranslationMaskingDisplayName() {
-        return hacksConfig.getString("detect-translation-masking.display-name",
-                "Translation Masking Bypass");
+        return getString(hacksConfig, "Translation Masking Bypass",
+                "engine.translation-masking.display-name", "detect-translation-masking.display-name");
     }
 
-    public int getTimeoutTicks()      { return hacksConfig.getInt("timeout-ticks", 200); }
-    public int getBetweenSignTicks()  { return hacksConfig.getInt("between-sign-ticks", 20); }
+    public int getTimeoutTicks()      { return getInt(hacksConfig, 200, "engine.timeout-ticks", "timeout-ticks"); }
+    public int getBetweenSignTicks()  { return getInt(hacksConfig, 20, "engine.batch-interval-ticks", "between-sign-ticks"); }
 
     public boolean isConfirmationEnabled() {
-        return masterConfig.getBoolean("double-confirmation.enabled", true);
+        return getBoolean(masterConfig, true, "engine.confirmation.enabled", "double-confirmation.enabled");
     }
 
     public int getShieldTimeoutTicks() {
-        return Math.max(20, masterConfig.getInt("shield-detection.timeout-ticks", 20));
+        return Math.max(20, getInt(masterConfig, 20, "engine.first-probe.timeout-ticks", "shield-detection.timeout-ticks"));
     }
 
     public int getShieldTimeoutBufferTicks() {
-        return Math.max(10, masterConfig.getInt("shield-detection.buffer-ticks", 20));
+        return Math.max(10, getInt(masterConfig, 20, "engine.first-probe.buffer-ticks", "shield-detection.buffer-ticks"));
     }
 
     public String getLocaleWebhookUrl() {
-        return masterConfig.getString("discord.locale.webhook-url", "");
+        return getString(masterConfig, "", "webhooks.locale.url", "webhooks.locale.webhook-url", "discord.locale.webhook-url");
     }
 
     public int getLocaleEmbedColor() {
-        return masterConfig.getInt("discord.locale.embed-color", 8355711);
+        return getInt(masterConfig, 8355711, "webhooks.locale.embed-color", "discord.locale.embed-color");
     }
 
     private boolean getPunishmentBoolean(String key, boolean fallback) {
+        String friendly = "enforcement.punishment." + key;
+        if (hacksConfig.contains(friendly)) {
+            return hacksConfig.getBoolean(friendly, fallback);
+        }
         String singular = "punishment." + key;
         if (hacksConfig.contains(singular)) {
             return hacksConfig.getBoolean(singular, fallback);
@@ -197,6 +237,10 @@ public class ConfigManager {
     }
 
     private String getPunishmentString(String key, String fallback) {
+        String friendly = "enforcement.punishment." + key;
+        if (hacksConfig.contains(friendly)) {
+            return hacksConfig.getString(friendly, fallback);
+        }
         String singular = "punishment." + key;
         if (hacksConfig.contains(singular)) {
             return hacksConfig.getString(singular, fallback);
@@ -210,6 +254,81 @@ public class ConfigManager {
         } catch (NumberFormatException ignored) {
             return Integer.MAX_VALUE;
         }
+    }
+
+    private ConfigurationSection getSection(FileConfiguration config, String... paths) {
+        for (String path : paths) {
+            ConfigurationSection section = config.getConfigurationSection(path);
+            if (section != null) {
+                return section;
+            }
+        }
+        return null;
+    }
+
+    private String getString(ConfigurationSection section, String fallback, String... paths) {
+        for (String path : paths) {
+            String value = section.getString(path);
+            if (value != null) {
+                return value;
+            }
+        }
+        return fallback;
+    }
+
+    private boolean getBoolean(ConfigurationSection section, boolean fallback, String... paths) {
+        for (String path : paths) {
+            if (section.contains(path)) {
+                return section.getBoolean(path, fallback);
+            }
+        }
+        return fallback;
+    }
+
+    private String getString(FileConfiguration config, String fallback, String... paths) {
+        for (String path : paths) {
+            String value = config.getString(path);
+            if (value != null) {
+                return value;
+            }
+        }
+        return fallback;
+    }
+
+    private List<String> getStringList(FileConfiguration config, String... paths) {
+        for (String path : paths) {
+            if (config.contains(path)) {
+                return config.getStringList(path);
+            }
+        }
+        return List.of();
+    }
+
+    private boolean getBoolean(FileConfiguration config, boolean fallback, String... paths) {
+        for (String path : paths) {
+            if (config.contains(path)) {
+                return config.getBoolean(path, fallback);
+            }
+        }
+        return fallback;
+    }
+
+    private int getInt(FileConfiguration config, int fallback, String... paths) {
+        for (String path : paths) {
+            if (config.contains(path)) {
+                return config.getInt(path, fallback);
+            }
+        }
+        return fallback;
+    }
+
+    private long getLong(FileConfiguration config, long fallback, String... paths) {
+        for (String path : paths) {
+            if (config.contains(path)) {
+                return config.getLong(path, fallback);
+            }
+        }
+        return fallback;
     }
 
 }

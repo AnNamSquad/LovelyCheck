@@ -3,8 +3,6 @@ package org.lovelycheck.core.config;
 import org.lovelycheck.core.LovelyCheckRegistry;
 import org.lovelycheck.core.lunar.LunarModInfo;
 import org.jetbrains.annotations.Nullable;
-import org.tomlj.TomlArray;
-import org.tomlj.TomlTable;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,7 +28,7 @@ public final class LunarConfig {
     private LunarConfig() {
     }
 
-    public static void load(@Nullable TomlTable result) {
+    public static void load(@Nullable ConfigNode result) {
         enabled = true;
         markLunarClient = true;
         markFabric = true;
@@ -52,7 +50,7 @@ public final class LunarConfig {
             enabled = enabledValue;
         }
 
-        TomlTable settings = result.getTable("settings");
+        ConfigNode settings = result.getTable("settings");
         if (settings != null) {
             markLunarClient = getBoolean(settings, "mark_lunar_client", markLunarClient);
             markFabric = getBoolean(settings, "mark_fabric", markFabric);
@@ -62,22 +60,22 @@ public final class LunarConfig {
             showModTypes = getBoolean(settings, "show_mod_types", showModTypes);
         }
 
-        TomlTable actionsTable = result.getTable("actions");
+        ConfigNode actionsTable = result.getTable("actions");
         if (actionsTable != null) {
-            lunarClientActions = resolveActions(actionsTable.getArray("lunar_client"));
-            fabricActions = resolveActions(actionsTable.getArray("fabric"));
-            forgeActions = resolveActions(actionsTable.getArray("forge"));
+            lunarClientActions = resolveActions(actionsTable.getList("lunar_client"));
+            fabricActions = resolveActions(actionsTable.getList("fabric"));
+            forgeActions = resolveActions(actionsTable.getList("forge"));
         }
 
-        TomlTable modActionsTable = result.getTable("mod_actions");
+        ConfigNode modActionsTable = result.getTable("mod_actions");
         if (modActionsTable != null) {
             Map<String, List<Action>> resolved = new HashMap<>();
             for (String key : modActionsTable.keySet()) {
-                TomlArray array = modActionsTable.getArray(key);
-                if (array == null) {
+                List<?> actionIds = modActionsTable.getList(key);
+                if (actionIds == null) {
                     continue;
                 }
-                List<Action> actions = resolveActions(array);
+                List<Action> actions = resolveActions(actionIds);
                 if (!actions.isEmpty()) {
                     resolved.put(normalizeModId(key), actions);
                 }
@@ -86,17 +84,17 @@ public final class LunarConfig {
         }
     }
 
-    private static boolean getBoolean(TomlTable table, String key, boolean defaultValue) {
+    private static boolean getBoolean(ConfigNode table, String key, boolean defaultValue) {
         Boolean value = table.getBoolean(key);
         return value != null ? value : defaultValue;
     }
 
-    private static List<Action> resolveActions(@Nullable TomlArray array) {
-        if (array == null) {
+    private static List<Action> resolveActions(@Nullable List<?> actionIds) {
+        if (actionIds == null) {
             return Collections.emptyList();
         }
         List<Action> actions = new ArrayList<>();
-        for (Object value : array.toList()) {
+        for (Object value : actionIds) {
             if (!(value instanceof String actionName)) {
                 continue;
             }

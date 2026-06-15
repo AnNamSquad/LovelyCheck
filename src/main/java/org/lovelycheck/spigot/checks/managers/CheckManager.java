@@ -238,7 +238,7 @@ public class CheckManager {
         boolean includeControlLine = (shouldUseControlLine(data.getCurrentBatch()) || data.isLocaleProbe());
         if (!plugin.openFakeSignCheck(target, signLoc, batch, includeControlLine)) {
             data.setSignLocation(null);
-            markBatchProtected(uuid, data, batch, "PacketEvents fake sign could not be opened");
+            markBatchSkipped(uuid, data, batch, "PacketEvents fake sign could not be opened");
             return;
         }
 
@@ -254,9 +254,9 @@ public class CheckManager {
             Player targetPlayer = Bukkit.getPlayer(uuid);
             if (targetPlayer != null && targetPlayer.isOnline()) {
                 long pingTicks = targetPlayer.getPing() / 50;
-                ticks = Math.max(configShieldTicks, pingTicks + buffer);
+                ticks = Math.max(ticks, Math.max(configShieldTicks, pingTicks + buffer));
             } else {
-                ticks = configShieldTicks;
+                ticks = Math.max(ticks, configShieldTicks);
             }
         }
         final long timeoutTicks = ticks;
@@ -276,24 +276,24 @@ public class CheckManager {
                 }
 
                 plugin.getLogger().info("[lovelycheck] Target " + uuid
-                        + " did not respond to the first probe. Client is PROTECTED (translation shield). Skipping remaining checks.");
+                        + " did not respond to the first probe. Marking configured probes as SKIPPED.");
 
                 List<HackDefinition> allHacks = data.getBatches().stream().flatMap(List::stream).toList();
                 for (HackDefinition h : allHacks) {
-                    data.getResults().put(h.getId(), HackResult.PROTECTED);
+                    data.getResults().put(h.getId(), HackResult.SKIPPED);
                 }
                 data.setCurrentBatch(data.getBatches().size());
                 scheduleNextOrFinish(uuid);
             } else {
                 for (HackDefinition h : batch)
-                    data.getResults().put(h.getId(), HackResult.PROTECTED);
+                    data.getResults().put(h.getId(), HackResult.SKIPPED);
                 data.incrementBatch();
                 scheduleNextOrFinish(uuid);
             }
         }, timeoutTicks);
     }
 
-    private void markBatchProtected(UUID uuid, CheckPlayerData data, List<HackDefinition> batch, String reason) {
+    private void markBatchSkipped(UUID uuid, CheckPlayerData data, List<HackDefinition> batch, String reason) {
         restoreCurrentSign(data);
 
         if (data.isLocaleProbe()) {
@@ -302,17 +302,17 @@ public class CheckManager {
         }
 
         plugin.getLogger().warning("[lovelycheck] Target " + uuid + " probe failed: "
-                + reason + ". Marking current probe as PROTECTED.");
+                + reason + ". Marking current probe as SKIPPED.");
 
         if (data.getCurrentBatch() == 0) {
             List<HackDefinition> allHacks = data.getBatches().stream().flatMap(List::stream).toList();
             for (HackDefinition h : allHacks) {
-                data.getResults().put(h.getId(), HackResult.PROTECTED);
+                data.getResults().put(h.getId(), HackResult.SKIPPED);
             }
             data.setCurrentBatch(data.getBatches().size());
         } else {
             for (HackDefinition h : batch) {
-                data.getResults().put(h.getId(), HackResult.PROTECTED);
+                data.getResults().put(h.getId(), HackResult.SKIPPED);
             }
             data.incrementBatch();
         }
@@ -529,12 +529,12 @@ public class CheckManager {
         return switch (hack.getMode()) {
             case METEOR -> {
                 // Meteor Client translates the key to a resolved string (e.g. "Open GUI").
-                // If the response matches the raw key, it IS the mod echoing back (DETECTED).
-                // If the response starts with the fallback, the mod is not present (NOT_DETECTED).
+                // Vanilla-safe clients either return the configured fallback or, on clients that
+                // ignore the fallback field, the raw key.
                 if (normalizedResp.startsWith(normalizedFallback))
                     yield HackResult.NOT_DETECTED;
                 if (normalizedResp.equals(normalizedKey))
-                    yield HackResult.DETECTED;
+                    yield exploitPreventer ? HackResult.PROTECTED : HackResult.NOT_DETECTED;
                 // Any other translated string also means the mod resolved it (DETECTED).
                 yield HackResult.DETECTED;
             }
@@ -547,7 +547,7 @@ public class CheckManager {
                 if (normalizedResp.startsWith(normalizedFallback))
                     yield HackResult.NOT_DETECTED;
                 if (normalizedResp.equals(normalizedKey))
-                    yield HackResult.NOT_DETECTED;
+                    yield exploitPreventer ? HackResult.PROTECTED : HackResult.NOT_DETECTED;
                 yield HackResult.DETECTED;
             }
             case KEYBIND -> {
@@ -556,7 +556,7 @@ public class CheckManager {
                 //   This is also what ExploitPreventer and OpSec return → NOT_DETECTED
                 // - Any other resolved string (e.g. "F") → keybind is registered → mod present
                 if (resp.equalsIgnoreCase(hack.getKey()))
-                    yield HackResult.NOT_DETECTED;
+                    yield exploitPreventer ? HackResult.PROTECTED : HackResult.NOT_DETECTED;
                 yield HackResult.DETECTED;
             }
         };
