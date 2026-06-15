@@ -7,6 +7,7 @@ import io.papermc.paper.registry.data.dialog.type.DialogType;
 import io.papermc.paper.registry.data.dialog.ActionButton;
 import io.papermc.paper.registry.data.dialog.action.DialogAction;
 import io.papermc.paper.registry.data.dialog.input.DialogInput;
+import io.papermc.paper.registry.data.dialog.input.SingleOptionDialogInput;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickCallback;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -26,6 +27,7 @@ import org.lovelycheck.spigot.checks.commands.AlertsCommand;
 import org.lovelycheck.spigot.checks.managers.ConfigManager;
 import org.lovelycheck.spigot.commands.BukkitCommandFallback;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -192,11 +194,11 @@ public final class LovelyCheckerCommand implements CommandExecutor, TabCompleter
     // ── Page 2: Mod Check List ────────────────────────────────────────────────
     private void openModListDialog(Player player) {
         ConfigManager configManager = plugin.getConfigManager();
-        Map<String, org.lovelycheck.spigot.checks.HackDefinition> registeredHacks = configManager.getHacks();
-        List<org.lovelycheck.spigot.checks.HackDefinition> defaultHacks = configManager.getDefaultLovelyCheck();
+        Map<String, HackDefinition> registeredHacks = configManager.getHacks();
+        List<HackDefinition> defaultHacks = configManager.getDefaultLovelyCheck();
 
-        List<DialogInput> inputs = new java.util.ArrayList<>();
-        for (org.lovelycheck.spigot.checks.HackDefinition hack : registeredHacks.values()) {
+        List<DialogInput> inputs = new ArrayList<>();
+        for (HackDefinition hack : registeredHacks.values()) {
             boolean active = defaultHacks.contains(hack);
             inputs.add(DialogInput.bool("hack_" + hack.getId().replace('-', '_'), Component.text(hack.getDisplayName()))
                     .initial(active).build());
@@ -213,7 +215,7 @@ public final class LovelyCheckerCommand implements CommandExecutor, TabCompleter
                                 .action(DialogAction.customClick((view, audience) -> {
                                     if (!(audience instanceof Player p)) return;
 
-                                    List<String> enabledHacksList = new java.util.ArrayList<>();
+                                    List<String> enabledHacksList = new ArrayList<>();
                                     for (String id : registeredHacks.keySet()) {
                                         Boolean checked = view.getBoolean("hack_" + id.replace('-', '_'));
                                         if (Boolean.TRUE.equals(checked)) enabledHacksList.add(id);
@@ -244,20 +246,18 @@ public final class LovelyCheckerCommand implements CommandExecutor, TabCompleter
 
     // ── Page 3: Add New Mod ───────────────────────────────────────────────────
     private void openAddModDialog(Player player) {
-        List<io.papermc.paper.registry.data.dialog.input.SingleOptionDialogInput.OptionEntry> modeOptions = List.of(
-                io.papermc.paper.registry.data.dialog.input.SingleOptionDialogInput.OptionEntry.create(
-                        "TRANSLATE", Component.text("TRANSLATE — translation key check"), true),
-                io.papermc.paper.registry.data.dialog.input.SingleOptionDialogInput.OptionEntry.create(
-                        "METEOR", Component.text("METEOR — Meteor Client mode"), false),
-                io.papermc.paper.registry.data.dialog.input.SingleOptionDialogInput.OptionEntry.create(
-                        "KEYBIND", Component.text("KEYBIND — keybind key check"), false)
+        List<SingleOptionDialogInput.OptionEntry> modeOptions = List.of(
+                SingleOptionDialogInput.OptionEntry.create("TRANSLATE", Component.text("TRANSLATE — translation key check"), true),
+                SingleOptionDialogInput.OptionEntry.create("METEOR",    Component.text("METEOR — Meteor Client mode"),         false),
+                SingleOptionDialogInput.OptionEntry.create("KEYBIND",   Component.text("KEYBIND — keybind key check"),          false)
         );
 
-        List<DialogInput> inputs = new java.util.ArrayList<>();
-        inputs.add(DialogInput.text("new_id", Component.text("Mod ID (e.g. myCoolHack)")).build());
-        inputs.add(DialogInput.text("new_name", Component.text("Display Name (e.g. Cool Hack)")).build());
-        inputs.add(DialogInput.text("new_key", Component.text("Detection Key (translation/keybind key)")).build());
+        List<DialogInput> inputs = new ArrayList<>();
+        inputs.add(DialogInput.text("new_id",   Component.text("Mod ID (e.g. my-cool-hack)")).build());
+        inputs.add(DialogInput.text("new_name",  Component.text("Display Name (e.g. Cool Hack)")).build());
+        inputs.add(DialogInput.text("new_key",   Component.text("Detection Key (translation key or keybind)")).build());
         inputs.add(DialogInput.singleOption("new_mode", Component.text("Detection Mode"), modeOptions).build());
+        inputs.add(DialogInput.bool("new_enabled", Component.text("Enable immediately in default checks")).initial(true).build());
 
         Dialog dialog = Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(Component.text("➕ Add New Mod Check", NamedTextColor.GOLD))
@@ -270,10 +270,11 @@ public final class LovelyCheckerCommand implements CommandExecutor, TabCompleter
                                 .action(DialogAction.customClick((view, audience) -> {
                                     if (!(audience instanceof Player p)) return;
 
-                                    String id = view.getText("new_id");
+                                    String id   = view.getText("new_id");
                                     String name = view.getText("new_name");
-                                    String key = view.getText("new_key");
+                                    String key  = view.getText("new_key");
                                     String mode = view.getText("new_mode");
+                                    boolean enableNow = Boolean.TRUE.equals(view.getBoolean("new_enabled"));
 
                                     if (id == null || id.isBlank() || key == null || key.isBlank()) {
                                         p.sendMessage(MM.deserialize(plugin.getConfigManager().getPrefix()
@@ -281,20 +282,30 @@ public final class LovelyCheckerCommand implements CommandExecutor, TabCompleter
                                         return;
                                     }
 
-                                    String safeId = id.trim().toLowerCase(java.util.Locale.ROOT)
-                                            .replaceAll("[^a-z0-9_-]", "-");
+                                    String safeId   = id.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_-]", "-");
                                     String safeName = (name == null || name.isBlank()) ? safeId : name.trim();
-                                    String safeMode = (mode == null || mode.isBlank()) ? "TRANSLATE" : mode.trim().toUpperCase(java.util.Locale.ROOT);
+                                    String safeMode = (mode == null || mode.isBlank()) ? "TRANSLATE" : mode.trim().toUpperCase(Locale.ROOT);
 
                                     plugin.getConfig().set("hacks." + safeId + ".display-name", safeName);
-                                    plugin.getConfig().set("hacks." + safeId + ".key", key.trim());
-                                    plugin.getConfig().set("hacks." + safeId + ".mode", safeMode);
+                                    plugin.getConfig().set("hacks." + safeId + ".key",          key.trim());
+                                    plugin.getConfig().set("hacks." + safeId + ".mode",         safeMode);
+
+                                    if (enableNow) {
+                                        List<String> defaults = new ArrayList<>(plugin.getConfig().getStringList("default-check-hacks"));
+                                        if (!defaults.contains(safeId)) defaults.add(safeId);
+                                        plugin.getConfig().set("default-check-hacks", defaults);
+
+                                        List<String> joinHacks = new ArrayList<>(plugin.getConfig().getStringList("auto-check-on-join.hacks"));
+                                        if (!joinHacks.contains(safeId)) joinHacks.add(safeId);
+                                        plugin.getConfig().set("auto-check-on-join.hacks", joinHacks);
+                                    }
+
                                     plugin.saveConfig();
                                     plugin.getConfigManager().reload();
 
                                     p.closeDialog();
                                     p.sendMessage(MM.deserialize(plugin.getConfigManager().getPrefix()
-                                            + "<green>Mod <white>" + safeName + "</white> added successfully."));
+                                            + "<green>Mod <white>" + safeName + "</white> added" + (enableNow ? " and enabled" : "") + " successfully."));
                                 }, net.kyori.adventure.text.event.ClickCallback.Options.builder().uses(1).build()))
                                 .build(),
                         ActionButton.builder(Component.text("← Back", NamedTextColor.YELLOW))
