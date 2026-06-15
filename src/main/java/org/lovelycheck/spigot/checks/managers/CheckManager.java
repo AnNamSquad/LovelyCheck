@@ -524,32 +524,39 @@ public class CheckManager {
             return HackResult.NOT_DETECTED;
         String normalizedResp = resp.toLowerCase(Locale.ROOT);
         String normalizedFallback = hack.getFallback().toLowerCase(Locale.ROOT);
+        String normalizedKey = hack.getKey().toLowerCase(Locale.ROOT);
 
         return switch (hack.getMode()) {
             case METEOR -> {
-                if (resp.equalsIgnoreCase(hack.getKey()))
-                    yield HackResult.DETECTED;
+                // Meteor Client translates the key to a resolved string (e.g. "Open GUI").
+                // If the response matches the raw key, it IS the mod echoing back (DETECTED).
+                // If the response starts with the fallback, the mod is not present (NOT_DETECTED).
                 if (normalizedResp.startsWith(normalizedFallback))
                     yield HackResult.NOT_DETECTED;
+                if (normalizedResp.equals(normalizedKey))
+                    yield HackResult.DETECTED;
+                // Any other translated string also means the mod resolved it (DETECTED).
                 yield HackResult.DETECTED;
             }
             case TRANSLATE -> {
+                // For translation-key probes:
+                // - Fallback match (⟦NO_XXX⟧) → mod NOT installed (vanilla fallback) → NOT_DETECTED
+                // - Raw key echo (e.g. "gui.xaero_minimap_settings") → client doesn't know the
+                //   translation key → mod NOT installed → NOT_DETECTED
+                // - Any other string → mod translated it → DETECTED
                 if (normalizedResp.startsWith(normalizedFallback))
                     yield HackResult.NOT_DETECTED;
-                if (resp.equalsIgnoreCase(hack.getKey()))
+                if (normalizedResp.equals(normalizedKey))
                     yield HackResult.NOT_DETECTED;
                 yield HackResult.DETECTED;
             }
             case KEYBIND -> {
-                // ExploitPreventer echoes the raw key name back — mark NOT_DETECTED
-                if (exploitPreventer && resp.equalsIgnoreCase(hack.getKey()))
-                    yield HackResult.NOT_DETECTED;
-                // OpSec masks mod keybinds by echoing the raw key name back.
-                // A vanilla client with the mod not installed also returns the raw key.
-                // Both cases are NOT_DETECTED unless matching connection evidence is present.
+                // For keybind probes:
+                // - Raw key echo (e.g. "key.freecam.toggle") → keybind not registered → mod absent
+                //   This is also what ExploitPreventer and OpSec return → NOT_DETECTED
+                // - Any other resolved string (e.g. "F") → keybind is registered → mod present
                 if (resp.equalsIgnoreCase(hack.getKey()))
                     yield HackResult.NOT_DETECTED;
-                // Any other non-empty response means the keybind resolved → mod present
                 yield HackResult.DETECTED;
             }
         };
