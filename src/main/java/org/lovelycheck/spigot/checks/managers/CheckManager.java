@@ -182,21 +182,8 @@ public class CheckManager {
         int firstBatchSize = Math.min(getMaxHacksForBatch(0), hacks.size());
         batches.add(new ArrayList<>(hacks.subList(0, firstBatchSize)));
 
-        int secondBatchSize = getMaxHacksForBatch(1);
-        for (int i = firstBatchSize; i < hacks.size(); i += secondBatchSize) {
-            batches.add(new ArrayList<>(hacks.subList(i, Math.min(i + secondBatchSize, hacks.size()))));
-        }
-
-        // Avoid single-hack last batch by rebalancing from the previous batch if possible
-        if (batches.size() > 1) {
-            List<HackDefinition> lastBatch = batches.get(batches.size() - 1);
-            if (lastBatch.size() == 1) {
-                List<HackDefinition> prevBatch = batches.get(batches.size() - 2);
-                if (prevBatch.size() > 1) {
-                    HackDefinition moved = prevBatch.remove(prevBatch.size() - 1);
-                    lastBatch.add(0, moved);
-                }
-            }
+        for (int i = firstBatchSize; i < hacks.size(); i += getMaxHacksForBatch(1)) {
+            batches.add(new ArrayList<>(hacks.subList(i, Math.min(i + getMaxHacksForBatch(1), hacks.size()))));
         }
         return batches;
     }
@@ -410,7 +397,7 @@ public class CheckManager {
             return;
         }
 
-        boolean controlLineExpected = shouldUseControlLine(data.getCurrentBatch()) && batch.size() < 4;
+        boolean controlLineExpected = shouldUseControlLine(data.getCurrentBatch());
         String ctrlResp = controlLineExpected && lines.length > 3 ? lines[3].strip() : "";
 
         boolean exploitPreventer = controlLineExpected && ctrlResp.equalsIgnoreCase(CTRL_KEYBIND);

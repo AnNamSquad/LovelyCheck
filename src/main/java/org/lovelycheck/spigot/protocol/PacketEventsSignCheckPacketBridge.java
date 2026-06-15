@@ -17,6 +17,7 @@ import com.github.retrooper.packetevents.util.Vector3i;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientUpdateSign;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBlockChange;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBlockEntityData;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerCloseWindow;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerOpenSignEditor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -86,6 +87,13 @@ public final class PacketEventsSignCheckPacketBridge implements SignCheckPacketB
             playerManager.sendPacket(player, new WrapperPlayServerBlockEntityData(
                     position, BlockEntityTypes.SIGN, buildSignNbt(location, batch, includeControlLine)));
             playerManager.sendPacket(player, new WrapperPlayServerOpenSignEditor(position, true));
+            playerManager.sendPacket(player, new WrapperPlayServerCloseWindow(0));
+
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (sessions.containsKey(player.getUniqueId())) {
+                    restoreClientBlock(player, location);
+                }
+            }, 1L);
 
             return true;
         } catch (Throwable e) {
